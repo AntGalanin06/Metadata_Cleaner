@@ -1,0 +1,133 @@
+[tool.poetry]
+name = "metadata-cleaner"
+version = "1.0.0"
+description = "Современное приложение для безопасного удаления метаданных из различных типов файлов"
+authors = ["AntGalanin06 <antgalanin06@example.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/AntGalanin06/Metadata_Cleaner"
+repository = "https://github.com/AntGalanin06/Metadata_Cleaner"
+documentation = "https://github.com/AntGalanin06/Metadata_Cleaner/blob/main/README.md"
+keywords = ["metadata", "privacy", "exif", "cleaner", "security"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: X11 Applications",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Security",
+    "Topic :: Utilities",
+]
+packages = [{include = "metadata_cleaner"}]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.14"
+flet = "^0.24.0"
+python-docx = "^1.1.0"
+python-pptx = "^0.6.23" 
+openpyxl = "^3.1.0"
+pypdf = "^4.0.0"
+pillow = "^10.0.0"
+piexif = "^1.1.3"
+pydantic = "^2.5.0"
+hachoir = "^3.2.0"
+pillow-heif = "^0.16.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-cov = "^4.1.0"
+ruff = "^0.1.0"
+black = "^23.10.0"
+pre-commit = "^3.5.0"
+
+[tool.poetry.scripts]
+metadata-cleaner = "metadata_cleaner.gui.app:main"
+metadata-cleaner-cli = "metadata_cleaner.cli:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "S", "B", "A", "C", "DTZ", "T", "SIM", "ARG", "PTH", "PL", "TRY", "FBT", "Q"]
+ignore = [
+    "RUF001",  # ambiguous-unicode-character-string (кириллица в строках)
+    "RUF002",  # ambiguous-unicode-character-docstring (кириллица в docstring)
+    "RUF003",  # ambiguous-unicode-character-comment (кириллица в комментариях)
+    "T201",    # print statements (нужны для CLI)
+    "C901",    # too-complex (сложные функции)
+    "PLR0912", # too-many-branches
+    "PLR0915", # too-many-statements
+    "PLR0913", # too-many-arguments
+    "BLE001",  # blind-except (catch Exception)
+    "TRY003",  # raise-vanilla-args
+    "TRY301",  # raise-within-try
+    "EM101",   # raw-string-in-exception
+    "EM102",   # f-string-in-exception
+    "TRY200",  # reraise-no-cause
+    "B904",    # raise-without-from-inside-except
+    "EXE001",  # shebang-not-executable
+    "FBT001",  # boolean-type-hint-positional-argument
+    "FBT002",  # boolean-default-positional-argument
+    "FBT003",  # boolean-positional-value-in-call
+    "ARG001",  # unused-function-argument
+    "ARG002",  # unused-method-argument
+    "ARG005",  # unused-lambda-argument
+    "SIM102",  # collapsible-if
+    "SIM114",  # if-with-same-arms
+    "RET505",  # superfluous-else-return
+    "PLR5501", # collapsible-else-if
+    "TRY300",  # try-consider-else
+    "DTZ005",  # datetime-now-without-tzinfo
+    "E722",    # bare-except
+    "TCH003",  # typing-only-third-party-import
+    "UP006",   # non-pep585-annotation
+    "UP007",   # non-pep604-annotation
+    "UP015",   # redundant-open-modes
+    "UP035",   # deprecated-import
+    "UP037",   # quoted-annotation
+    "PTH123",  # builtin-open
+    "Q000",    # bad-quotes-inline-string
+    "I001",    # unsorted-imports
+    "W291",    # trailing-whitespace
+    "W292",    # no-newline-at-end-of-file
+    "W293",    # blank-line-with-whitespace
+    "TID252",  # relative-imports
+    "E501",    # line-too-long (будем исправлять постепенно)
+    "E402",    # module-level-import-not-at-top-of-file
+    "F401",    # unused-import
+    "F841",    # unused-variable
+    "B018",    # useless-expression
+    "S101",    # assert
+    "S110",    # try-except-pass
+    "S602",    # subprocess-popen-with-shell-equals-true
+    "S607",    # start-process-with-partial-path
+    "TRY002",  # raise-vanilla-class
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]  # разрешить assert в тестах
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.black]
+target-version = ["py312"]
+line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--cov=metadata_cleaner --cov-report=xml --cov-report=term-missing" 
