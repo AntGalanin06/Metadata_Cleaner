@@ -1,0 +1,273 @@
+name: 🚀 Release Build & Deploy
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: 🪟 Windows Installer
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Set UTF-8 encoding for Windows
+      run: |
+        echo "PYTHONIOENCODING=utf-8" >> $env:GITHUB_ENV
+        echo "LANG=en_US.UTF-8" >> $env:GITHUB_ENV
+        chcp 65001
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install poetry
+        poetry install
+    
+    - name: Build Windows app with FFmpeg
+      run: |
+        poetry run python build.py
+    
+    - name: Install NSIS
+      run: |
+        choco install nsis -y
+    
+    - name: Create Windows Installer
+      run: |
+        # Проверяем структуру dist
+        Write-Host "Структура dist:"
+        Get-ChildItem dist
+        
+        if (Test-Path "dist\MetadataCleaner") {
+          Write-Host "Найдена папка MetadataCleaner"
+        } elseif (Test-Path "dist\MetadataCleaner.exe") {
+          Write-Host "Найден одиночный исполняемый файл, создаем папку..."
+          New-Item -ItemType Directory -Path "dist\MetadataCleaner" -Force
+          Copy-Item "dist\MetadataCleaner.exe" -Destination "dist\MetadataCleaner\MetadataCleaner.exe"
+          Write-Host "Файл скопирован в dist\MetadataCleaner\"
+        } else {
+          Write-Host "Папка MetadataCleaner не найдена, ищем альтернативы..."
+          $distItems = Get-ChildItem dist -Directory
+          if ($distItems.Count -gt 0) {
+            $firstDir = $distItems[0].Name
+            Write-Host "Создаем симлинк для $firstDir"
+            New-Item -ItemType SymbolicLink -Path "dist\MetadataCleaner" -Target "dist\$firstDir"
+          } else {
+            Write-Host "Создаем папку и копируем все файлы..."
+            New-Item -ItemType Directory -Path "dist\MetadataCleaner" -Force
+            Get-ChildItem dist -File | Copy-Item -Destination "dist\MetadataCleaner\"
+          }
+        }
+        
+        # Проверяем результат
+        Write-Host "Содержимое dist\MetadataCleaner:"
+        Get-ChildItem "dist\MetadataCleaner"
+        
+        # Создаем универсальный установщик с автоопределением языка
+        makensis installer_windows.nsi
+      shell: pwsh
+    
+    - name: Upload Windows Installer
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-installer
+        path: MetadataCleaner-Windows.exe
+
+  build-macos:
+    name: 🍎 macOS DMG
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Set UTF-8 encoding for macOS
+      run: |
+        echo "PYTHONIOENCODING=utf-8" >> $GITHUB_ENV
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install poetry
+        poetry install
+    
+    - name: Install create-dmg
+      run: brew install create-dmg
+    
+    - name: Build macOS app and DMG
+      run: |
+        poetry run python build.py
+    
+    - name: Upload macOS DMG
+      uses: actions/upload-artifact@v4
+      with:
+        name: macos-dmg
+        path: MetadataCleaner-macOS.dmg
+
+  build-linux:
+    name: 🐧 Linux AppImage
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y fuse libfuse2
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install poetry
+        poetry install
+    
+    - name: Build Linux app with FFmpeg
+      run: |
+        poetry run python build.py
+    
+    - name: Create AppImage
+      run: |
+        # Скачиваем linuxdeploy
+        wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        chmod +x linuxdeploy-x86_64.AppImage
+        
+        # Создаем AppDir структуру
+        mkdir -p AppDir/usr/bin
+        mkdir -p AppDir/usr/share/applications
+        mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+        
+        # Копируем приложение (исправляем путь)
+        if [ -d "dist/MetadataCleaner" ]; then
+          cp -r dist/MetadataCleaner/* AppDir/usr/bin/
+        elif [ -d "dist/run" ]; then
+          cp -r dist/run/* AppDir/usr/bin/
+        else
+          echo "Ищем папку dist..."
+          ls -la dist/
+          cp -r dist/*/* AppDir/usr/bin/ 2>/dev/null || cp -r dist/* AppDir/usr/bin/
+        fi
+        # Находим исполняемый файл
+        if [ -f "AppDir/usr/bin/MetadataCleaner" ]; then
+          chmod +x AppDir/usr/bin/MetadataCleaner
+        elif [ -f "AppDir/usr/bin/run" ]; then
+          chmod +x AppDir/usr/bin/run
+          mv AppDir/usr/bin/run AppDir/usr/bin/MetadataCleaner
+        else
+          echo "Поиск исполняемого файла..."
+          find AppDir/usr/bin -type f -executable
+          # Найдем первый исполняемый файл и переименуем
+          exec_file=$(find AppDir/usr/bin -type f -executable | head -1)
+          if [ -n "$exec_file" ]; then
+            mv "$exec_file" AppDir/usr/bin/MetadataCleaner
+            chmod +x AppDir/usr/bin/MetadataCleaner
+          fi
+        fi
+        
+        # Создаем desktop файл
+        cat > AppDir/usr/share/applications/metadata-cleaner.desktop << EOF
+        [Desktop Entry]
+        Type=Application
+        Name=Metadata Cleaner
+        Comment=Clean metadata from files
+        Exec=MetadataCleaner
+        Icon=metadata-cleaner
+        Categories=Utility;
+        EOF
+        
+        # Копируем иконку
+        cp assets/icons/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/metadata-cleaner.png
+        
+        # Копируем мультиязычную лицензию
+        cp docs/LICENSE_INSTALLER.txt AppDir/LICENSE_INSTALLER.txt
+        
+        # Создаем AppImage
+        ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
+        
+        # Переименовываем (ищем созданный файл)
+        mv *.AppImage MetadataCleaner-Linux.AppImage 2>/dev/null || true
+        
+        # Если не нашли, создаем вручную
+        if [ ! -f "MetadataCleaner-Linux.AppImage" ]; then
+          echo "Поиск созданного AppImage..."
+          ls -la *.AppImage || true
+          # Переименовываем найденный файл
+          for file in *.AppImage; do
+            if [ -f "$file" ]; then
+              mv "$file" MetadataCleaner-Linux.AppImage
+              break
+            fi
+          done
+        fi
+    
+    - name: Upload Linux AppImage
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-appimage
+        path: MetadataCleaner-Linux.AppImage
+    
+    - name: Upload Linux Installer
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-installer
+        path: installer_linux.sh
+
+  release:
+    name: 📦 Create Release
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+    
+    - name: Create Release Notes
+      run: |
+        # Используем единый шаблон релиза
+        sed "s/{VERSION}/${GITHUB_REF#refs/tags/}/g" docs/RELEASE_TEMPLATE.md > RELEASE_NOTES.md
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          windows-installer/MetadataCleaner-Windows.exe
+          macos-dmg/MetadataCleaner-macOS.dmg
+          linux-appimage/MetadataCleaner-Linux.AppImage
+          linux-installer/installer_linux.sh
+        body_path: RELEASE_NOTES.md
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify:
+    name: 📢 Notify Success
+    needs: [release]
+    runs-on: ubuntu-latest
+    if: success()
+    
+    steps:
+    - name: Success Notification
+      run: |
+        echo "🎉 Release ${GITHUB_REF#refs/tags/} успешно создан!"
+        echo "📦 Все установщики с юридическими документами загружены"
+        echo "🔗 Проверьте: https://github.com/${{ github.repository }}/releases" 
