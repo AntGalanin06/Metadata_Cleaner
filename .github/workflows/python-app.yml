@@ -22,9 +22,9 @@ jobs:
         poetry install
     - name: Run tests with coverage
       run: |
-        poetry run pytest --cov=metadata_cleaner --cov-report=xml --cov-report=term-missing
+        poetry run pytest --cov=metadata_cleaner --cov-report=term-missing
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
-        file: ./coverage.xml
+        files: ./coverage.xml
         fail_ci_if_error: false 
