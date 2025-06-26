@@ -1,8 +1,8 @@
 # <img src="https://github.com/AntGalanin06/Metadata_Cleaner/blob/master/assets/icons/icon.png?raw=true" width="32" height="32" style="vertical-align: -4px;"> Metadata Cleaner {VERSION}
 
 <p align="center">
-  <a href="https://github.com/AntGalanin06/Metadata_Cleaner/releases/tag/v{VERSION}">
-    <img src="https://img.shields.io/github/downloads/AntGalanin06/Metadata_Cleaner/v{VERSION}/total?style=for-the-badge&logo=github&color=2ea043&labelColor=000" alt="Downloads"/>
+  <a href="https://github.com/AntGalanin06/Metadata_Cleaner/releases/tag/{VERSION}">
+    <img src="https://img.shields.io/github/downloads/AntGalanin06/Metadata_Cleaner/{VERSION}/total?style=for-the-badge&logo=github&color=2ea043&labelColor=000" alt="Downloads"/>
   </a>
   <img src="https://img.shields.io/badge/Version-{VERSION}-blue?style=for-the-badge&logo=tag&logoColor=white&labelColor=000" alt="Version"/>
 </p>
