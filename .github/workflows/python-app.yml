@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ master ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,16 +25,17 @@ jobs:
         version: latest
         virtualenvs-create: true
         virtualenvs-in-project: true
-    - name: Load cached venv
-      id: cached-poetry-dependencies
-      uses: actions/cache@v4
-      with:
-        path: .venv
-        key: venv-${{ runner.os }}-3.12-${{ hashFiles('**/poetry.lock') }}
+
     - name: Install dependencies
       run: |
-        poetry install --no-interaction
-        poetry run python -c "import pytest" || poetry add pytest pytest-cov --group dev
+        poetry env remove --all || true
+        poetry install --no-interaction --verbose
+        
+    - name: Verify installation
+      run: |
+        poetry run python --version
+        poetry run python -c "import pytest; print('pytest found')"
+        
     - name: Run tests with coverage
       run: |
         poetry run pytest --cov=metadata_cleaner --cov-report=xml --cov-report=term-missing
