@@ -19,6 +19,7 @@ class ActionBar(ft.UserControl):
         on_pick_folder: Callable | None = None,
         on_clear_list: Callable | None = None,
         on_clean_metadata: Callable | None = None,
+        on_show_details: Callable | None = None,
         on_toggle_theme: Callable | None = None,
         on_show_settings: Callable | None = None,
     ):
@@ -27,11 +28,13 @@ class ActionBar(ft.UserControl):
         self.on_pick_folder = on_pick_folder
         self.on_clear_list = on_clear_list
         self.on_clean_metadata = on_clean_metadata
+        self.on_show_details = on_show_details
         self.on_toggle_theme = on_toggle_theme
         self.on_show_settings = on_show_settings
 
         self.is_processing = False
         self.clean_enabled = False
+        self.details_visible = False  # Initially hidden
 
         # Создаем кнопки как атрибуты
         self.pick_files_btn = ft.ElevatedButton(
@@ -64,6 +67,13 @@ class ActionBar(ft.UserControl):
             disabled=True,
         )
 
+        self.details_btn = ft.ElevatedButton(
+            text=translator.get("details"),
+            icon=ft.icons.INFO_OUTLINED,
+            on_click=self.on_show_details,
+            visible=False,  # Initially hidden
+        )
+
     def build(self):
         return ft.Row(
             [
@@ -71,6 +81,7 @@ class ActionBar(ft.UserControl):
                 self.pick_folder_btn,
                 self.clear_list_btn,
                 ft.Container(expand=True),
+                self.details_btn,
                 self.clean_btn,
             ],
             spacing=8,
@@ -145,6 +156,13 @@ class ActionBar(ft.UserControl):
         # Возврат к нормальному состоянию
         # Можно добавить таймер
 
+    def set_details_visible(self, visible: bool):
+        """Показать/скрыть кнопку деталей"""
+        self.details_visible = visible
+        self.details_btn.visible = visible
+        if hasattr(self, "page") and self.page:
+            self.update()
+
     def update_button_state(self, has_files: bool):
         self.clear_list_btn.disabled = not has_files
         if hasattr(self, "page") and self.page:
@@ -156,5 +174,6 @@ class ActionBar(ft.UserControl):
         self.pick_folder_btn.text = translator.get("pick_folder")
         self.clear_list_btn.text = translator.get("clear")
         self.clean_btn.text = translator.get("clean_metadata")
+        self.details_btn.text = translator.get("details")
         if hasattr(self, "page") and self.page:
             self.update()

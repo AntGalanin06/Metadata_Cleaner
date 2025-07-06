@@ -153,6 +153,17 @@ LOCALIZATION = {
         "switch_theme": "Переключить тему",
         "remove_from_list": "Удалить из списка",
         
+        # Detailed results dialog
+        "no_results_yet": "Результаты обработки появятся здесь",
+        "total_files": "Всего файлов",
+        "failed": "Не удалось",
+        "metadata_cleaned_count": "Очищено {count} полей метаданных",
+        "cleaned_metadata": "Очищенные метаданные:",
+        "no_metadata_found": "Метаданные не найдены",
+        "file_had_no_metadata": "Файл не содержал метаданных для очистки",
+        "processing_failed": "Ошибка обработки",
+        "processing_time": "Время: {time}",
+        
         # Metadata settings translations
         "exif_author": "Автор фотографии",
         "exif_author_desc": "Информация о фотографе в EXIF",
@@ -378,6 +389,17 @@ LOCALIZATION = {
         "pick_folder_dialog_title": "Select folder to scan for files",
         "switch_theme": "Switch theme",
         "remove_from_list": "Remove from list",
+        
+        # Detailed results dialog
+        "no_results_yet": "Processing results will appear here",
+        "total_files": "Total Files",
+        "failed": "Failed",
+        "metadata_cleaned_count": "Cleaned {count} metadata fields",
+        "cleaned_metadata": "Cleaned metadata:",
+        "no_metadata_found": "No metadata found",
+        "file_had_no_metadata": "File contained no metadata to clean",
+        "processing_failed": "Processing failed",
+        "processing_time": "Time: {time}",
         
         # Metadata settings translations
         "exif_author": "Photo Author",

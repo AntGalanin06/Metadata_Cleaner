@@ -12,6 +12,7 @@ from metadata_cleaner.cleaner.models import (
     FileJob,
 )
 from metadata_cleaner.gui.components.action_bar import ActionBar
+from metadata_cleaner.gui.components.detailed_results_dialog import DetailedResultsDialog
 from metadata_cleaner.gui.components.file_card import FileCard
 from metadata_cleaner.gui.components.progress_card import ProgressCard
 from metadata_cleaner.gui.components.settings_dialog import SettingsDialog
@@ -31,6 +32,9 @@ class MetadataCleanerApp:
 
         self.settings = SettingsService()
         self.dispatcher = MetadataDispatcher(settings_service=self.settings)
+        
+        # Диалог детальных результатов
+        self.detailed_results_dialog = DetailedResultsDialog()
 
         # Установка языка из настроек
         translator.set_language(self.settings.get_language())
@@ -94,6 +98,7 @@ class MetadataCleanerApp:
             on_pick_folder=self.pick_folder,
             on_clear_list=self.clear_list,
             on_clean_metadata=self.clean_metadata,
+            on_show_details=self.show_detailed_results,
         )
 
         self.stats_panel = StatsPanel()
@@ -452,6 +457,10 @@ class MetadataCleanerApp:
         self.cleaning_results.clear()
         self.file_cards.clear()
         self.files_grid.controls.clear()
+        
+        # Скрываем кнопку деталей
+        self.action_bar.set_details_visible(False)
+        
         self.update_ui()
         self.update_empty_state()
 
@@ -529,6 +538,7 @@ class MetadataCleanerApp:
         # Устанавливаем состояние обработки
         self.is_processing = True
         self.action_bar.set_processing_state(True)
+        self.action_bar.set_details_visible(False)  # Скрываем кнопку деталей во время обработки
         self.progress_card.reset()
         self.progress_card.update_progress(
             translator.get("starting_cleanup"), translator.get("preparing_files")
@@ -586,6 +596,12 @@ class MetadataCleanerApp:
         # Финальное обновление статистики покажет результат
         self.update_stats()
 
+        # Показываем кнопку деталей после завершения обработки
+        self.action_bar.set_details_visible(True)
+        
+        # Обновляем результаты в диалоге деталей
+        self.detailed_results_dialog.update_results(self.cleaning_results)
+
         # Анимация успеха на кнопке
         if successful == total_files:
             self.action_bar.show_success_animation()
@@ -607,58 +623,16 @@ class MetadataCleanerApp:
         snackbar = ft.SnackBar(
             content=ft.Text(message, color=ft.colors.BLACK87),
             bgcolor=bgcolor,
-            action=translator.get("details"),
-            action_color=ft.colors.PRIMARY,
-            on_action=lambda e: self.show_detailed_results(),
         )
 
         self.page.snack_bar = snackbar
         snackbar.open = True
         self.page.update()
 
-    def show_detailed_results(self):
+    def show_detailed_results(self, e=None):
         """Показ детальных результатов"""
-
-        def close_dialog(e):
-            dialog.open = False
-            self.page.update()
-
-        results_list = ft.ListView(height=400, spacing=8, padding=ft.padding.all(16))
-
-        for result in self.cleaning_results.values():
-            path = result.job.file_path
-
-            if result.is_success:
-                icon = ft.Icon(ft.icons.CHECK_CIRCLE, color=ft.colors.GREEN, size=20)
-                subtitle = f"{translator.get('status_cleaned')}: {len(result.cleaned_fields or {})}"
-                if result.cleaned_fields:
-                    metadata_text = ", ".join(result.cleaned_fields.keys())
-                    subtitle += f"\n{metadata_text}"
-            else:
-                icon = ft.Icon(ft.icons.ERROR, color=ft.colors.RED, size=20)
-                subtitle = result.message or translator.get("unknown_error")
-
-            results_list.controls.append(
-                ft.Card(
-                    content=ft.ListTile(
-                        leading=icon,
-                        title=ft.Text(path.name, weight=ft.FontWeight.W_500),
-                        subtitle=ft.Text(subtitle, size=12),
-                    ),
-                    elevation=1,
-                )
-            )
-
-        dialog = ft.AlertDialog(
-            title=ft.Text(translator.get("detailed_results")),
-            content=results_list,
-            actions=[ft.TextButton(translator.get("close"), on_click=close_dialog)],
-            modal=True,
-        )
-
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
+        self.detailed_results_dialog.update_results(self.cleaning_results)
+        self.detailed_results_dialog.show(self.page)
 
     def toggle_theme(self, e):
         """Переключение темы"""
