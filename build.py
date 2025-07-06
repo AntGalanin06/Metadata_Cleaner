@@ -193,28 +193,59 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-exe = EXE(
-    pyz,
-    a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    [],
-    name='MetadataCleaner',
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
-    console=False,
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-    icon='assets/icons/icon.ico',
-)
+# Create different build configurations based on platform
+if platform.system() == "Linux":
+    # Linux: Create directory with executable for easier installation
+    exe = EXE(
+        pyz,
+        a.scripts,
+        [],
+        exclude_binaries=True,
+        name='MetadataCleaner',
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=True,
+        console=False,
+        disable_windowed_traceback=False,
+        target_arch=None,
+        codesign_identity=None,
+        entitlements_file=None,
+    )
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
+        strip=False,
+        upx=True,
+        upx_exclude=[],
+        name='MetadataCleaner'
+    )
+else:
+    # Windows and other platforms: Single executable
+    exe = EXE(
+        pyz,
+        a.scripts,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
+        [],
+        name='MetadataCleaner',
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=True,
+        upx_exclude=[],
+        runtime_tmpdir=None,
+        console=False,
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        target_arch=None,
+        codesign_identity=None,
+        entitlements_file=None,
+        icon='assets/icons/icon.ico',
+    )
 
 # macOS App Bundle
 if platform.system() == "Darwin":
@@ -252,6 +283,118 @@ def build_app():
 
     # Собрать с PyInstaller
     run_command("pyinstaller MetadataCleaner.spec")
+
+
+def create_linux_appimage():
+    """Создать AppImage для Linux"""
+    if platform.system() != "Linux":
+        return
+    
+    print("Создание AppImage для Linux...")
+    
+    # Проверить наличие appimagetool
+    appimage_tool = None
+    for tool in ["appimagetool", "appimagetool-x86_64.AppImage"]:
+        try:
+            run_command(f"which {tool}")
+            appimage_tool = tool
+            break
+        except:
+            continue
+    
+    if not appimage_tool:
+        print("AppImageTool не найден. Скачиваю...")
+        try:
+            # Скачиваем appimagetool
+            tool_url = "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+            urllib.request.urlretrieve(tool_url, "appimagetool-x86_64.AppImage")
+            run_command("chmod +x appimagetool-x86_64.AppImage")
+            appimage_tool = "./appimagetool-x86_64.AppImage"
+        except Exception as e:
+            print(f"! Не удалось скачать AppImageTool: {e}")
+            return
+    
+    # Создаем структуру AppDir
+    appdir = Path("dist/MetadataCleaner.AppDir")
+    if appdir.exists():
+        shutil.rmtree(appdir)
+    
+    appdir.mkdir()
+    (appdir / "usr").mkdir()
+    (appdir / "usr" / "bin").mkdir()
+    (appdir / "usr" / "share").mkdir()
+    (appdir / "usr" / "share" / "applications").mkdir()
+    (appdir / "usr" / "share" / "icons").mkdir()
+    (appdir / "usr" / "share" / "icons" / "hicolor").mkdir()
+    (appdir / "usr" / "share" / "icons" / "hicolor" / "256x256").mkdir()
+    (appdir / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps").mkdir()
+    
+    # Копируем приложение
+    if Path("dist/MetadataCleaner").is_dir():
+        shutil.copytree("dist/MetadataCleaner", appdir / "usr" / "bin" / "MetadataCleaner")
+    else:
+        shutil.copy2("dist/MetadataCleaner", appdir / "usr" / "bin" / "MetadataCleaner")
+    
+    # Копируем иконку
+    if Path("assets/icons/icon.png").exists():
+        shutil.copy2("assets/icons/icon.png", 
+                    appdir / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps" / "metadata-cleaner.png")
+        shutil.copy2("assets/icons/icon.png", appdir / "metadata-cleaner.png")
+    
+    # Создаем AppRun
+    apprun_content = """#!/bin/bash
+HERE="$(dirname "$(readlink -f "${0}")")"
+EXEC="${HERE}/usr/bin/MetadataCleaner"
+if [ -d "${EXEC}" ]; then
+    exec "${EXEC}/MetadataCleaner" "$@"
+else
+    exec "${EXEC}" "$@"
+fi
+"""
+    
+    apprun_path = appdir / "AppRun"
+    apprun_path.write_text(apprun_content)
+    apprun_path.chmod(0o755)
+    
+    # Создаем .desktop файл
+    desktop_content = """[Desktop Entry]
+Name=Metadata Cleaner
+Comment=Remove metadata from files
+Comment[ru]=Удаление метаданных из файлов
+Exec=MetadataCleaner
+Icon=metadata-cleaner
+Type=Application
+Categories=Utility;Privacy;
+Terminal=false
+StartupWMClass=MetadataCleaner
+"""
+    
+    desktop_path = appdir / "metadata-cleaner.desktop"
+    desktop_path.write_text(desktop_content)
+    
+    # Копируем desktop файл в usr/share/applications
+    shutil.copy2(desktop_path, appdir / "usr" / "share" / "applications" / "metadata-cleaner.desktop")
+    
+    try:
+        # Попробуем создать AppImage с APPIMAGE_EXTRACT_AND_RUN=1 для обхода проблем с FUSE
+        run_command(f"APPIMAGE_EXTRACT_AND_RUN=1 {appimage_tool} {appdir} MetadataCleaner-Linux.AppImage")
+        print("✅ AppImage создан: MetadataCleaner-Linux.AppImage")
+    except Exception as e:
+        print(f"! Ошибка создания AppImage с FUSE: {e}")
+        try:
+            # Альтернативный способ - без FUSE
+            print("Пробуем создать AppImage без FUSE...")
+            run_command(f"{appimage_tool} --appimage-extract-and-run {appdir} MetadataCleaner-Linux.AppImage")
+        except Exception as e2:
+            print(f"! Альтернативный способ также не сработал: {e2}")
+            # Создаем простой tar.gz архив как fallback
+            try:
+                print("Создаю альтернативный Linux архив...")
+                run_command(f"cd dist && tar -czf MetadataCleaner-Linux.tar.gz MetadataCleaner")
+                print("✅ Альтернативный архив создан: dist/MetadataCleaner-Linux.tar.gz")
+                print("💡 Для установки: распакуйте архив и запустите installer_linux.sh")
+            except Exception as e3:
+                print(f"! Не удалось создать даже архив: {e3}")
 
 
 def create_macos_dmg():
@@ -325,6 +468,10 @@ def main():
     # Создать установщик для macOS
     if platform.system() == "Darwin":
         create_macos_dmg()
+    
+    # Создать AppImage для Linux
+    if platform.system() == "Linux":
+        create_linux_appimage()
 
 
 if __name__ == "__main__":
