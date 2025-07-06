@@ -83,12 +83,12 @@ class ImageHandler(BaseHandler):
             # Сохранение удаляемых данных
             # Проверяем есть ли хотя бы одна настройка камеры включена
             camera_fields_enabled = any([
-                job.clean_fields.get("exif_camera", True),
-                job.clean_fields.get("exif_author", True), 
-                job.clean_fields.get("exif_software", True),
-                job.clean_fields.get("camera_owner", True),
-                job.clean_fields.get("camera_serial", True),
-                job.clean_fields.get("camera", True)  # для обратной совместимости
+                job.clean_fields.get("exif_camera", False),
+                job.clean_fields.get("exif_author", False), 
+                job.clean_fields.get("exif_software", False),
+                job.clean_fields.get("camera_owner", False),
+                job.clean_fields.get("camera_serial", False),
+                job.clean_fields.get("camera", False)  # для обратной совместимости
             ])
             if camera_fields_enabled:
                 # Информация о камере
@@ -170,9 +170,9 @@ class ImageHandler(BaseHandler):
 
             # Проверяем есть ли хотя бы одна настройка GPS включена
             gps_fields_enabled = any([
-                job.clean_fields.get("gps_coords", True),
-                job.clean_fields.get("gps_altitude", True),
-                job.clean_fields.get("gps", True)  # для обратной совместимости
+                job.clean_fields.get("gps_coords", False),
+                job.clean_fields.get("gps_altitude", False),
+                job.clean_fields.get("gps", False)  # для обратной совместимости
             ])
             if gps_fields_enabled:
                 # GPS данные
@@ -181,8 +181,8 @@ class ImageHandler(BaseHandler):
 
             # Проверяем есть ли хотя бы одна настройка даты включена
             date_fields_enabled = any([
-                job.clean_fields.get("exif_datetime", True),
-                job.clean_fields.get("created", True)  # для обратной совместимости
+                job.clean_fields.get("exif_datetime", False),
+                job.clean_fields.get("created", False)  # для обратной совместимости
             ])
             if date_fields_enabled:
                 # Даты создания
