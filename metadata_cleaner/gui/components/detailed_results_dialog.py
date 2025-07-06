@@ -200,6 +200,7 @@ class DetailedResultsDialog(ft.UserControl):
                             )
                         )
                 
+                # Создаем секцию для отображения всех очищенных метаданных
                 metadata_section = ft.Column(
                     [
                         ft.Text(
@@ -209,7 +210,7 @@ class DetailedResultsDialog(ft.UserControl):
                             color=ft.colors.ON_SURFACE_VARIANT,
                         ),
                         ft.Row(
-                            metadata_chips[:5],  # Показываем максимум 5 чипов
+                            metadata_chips,  # Показываем ВСЕ очищенные метаданные
                             wrap=True,
                             spacing=4,
                         ),
