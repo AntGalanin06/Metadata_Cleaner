@@ -30,6 +30,10 @@ class SettingsDialog(ft.UserControl):
             "output_mode": "create_copy",
             "create_backup": True,
             "language": "ru",
+            "max_threads": 4,
+            "show_notifications": True,
+            "auto_close_after_completion": False,
+            "show_detailed_logs": False,
             "file_type_settings": {
                 "image": {
                     # EXIF данные
@@ -234,6 +238,30 @@ class SettingsDialog(ft.UserControl):
             width=250,
         )
 
+        self.max_threads_slider = ft.Slider(
+            min=1,
+            max=16,
+            divisions=15,
+            value=self.current_settings.get("max_threads", 4),
+            label="Потоки: {value}",
+            width=300,
+        )
+
+        self.show_notifications_switch = ft.Switch(
+            label=translator.get("show_notifications"),
+            value=self.current_settings.get("show_notifications", True),
+        )
+
+        self.auto_close_switch = ft.Switch(
+            label=translator.get("auto_close_after_completion"),
+            value=self.current_settings.get("auto_close_after_completion", False),
+        )
+
+        self.show_detailed_logs_switch = ft.Switch(
+            label=translator.get("show_detailed_logs"),
+            value=self.current_settings.get("show_detailed_logs", False),
+        )
+
         self.language_dropdown = ft.Dropdown(
             label=translator.get("language"),
             options=[
@@ -267,7 +295,35 @@ class SettingsDialog(ft.UserControl):
                     ),
                     ft.Container(height=8),
                     self.output_mode_dropdown,
+                    ft.Container(height=16),
+                    ft.Text(
+                        translator.get("processing_settings"),
+                        size=16,
+                        weight=ft.FontWeight.W_600,
+                    ),
                     ft.Container(height=8),
+                    ft.Row(
+                        [
+                            ft.Text(
+                                translator.get("max_threads"),
+                                size=14,
+                                weight=ft.FontWeight.W_500,
+                            ),
+                            self.max_threads_slider,
+                        ],
+                        spacing=20,
+                        alignment=ft.MainAxisAlignment.START,
+                    ),
+                    ft.Container(height=8),
+                    ft.Column(
+                        [
+                            self.show_notifications_switch,
+                            self.auto_close_switch,
+                            self.show_detailed_logs_switch,
+                        ],
+                        spacing=8,
+                    ),
+                    ft.Container(height=16),
                     ft.Text(
                         translator.get("info"), size=14, weight=ft.FontWeight.W_500
                     ),
@@ -927,6 +983,10 @@ class SettingsDialog(ft.UserControl):
             "output_mode": "create_copy",
             "create_backup": True,
             "language": "ru",
+            "max_threads": 4,
+            "show_notifications": True,
+            "auto_close_after_completion": False,
+            "show_detailed_logs": False,
             "file_type_settings": {
                 "image": {
                     # EXIF данные
@@ -1054,6 +1114,10 @@ class SettingsDialog(ft.UserControl):
             "theme": self.theme_dropdown.value,
             "output_mode": self.output_mode_dropdown.value,
             "language": self.language_dropdown.value,
+            "max_threads": int(self.max_threads_slider.value),
+            "show_notifications": self.show_notifications_switch.value,
+            "auto_close_after_completion": self.auto_close_switch.value,
+            "show_detailed_logs": self.show_detailed_logs_switch.value,
             "file_type_settings": self.current_settings["file_type_settings"].copy(),
         }
 

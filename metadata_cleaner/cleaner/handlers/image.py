@@ -71,11 +71,26 @@ class ImageHandler(BaseHandler):
         cleaned_fields = {}
 
         try:
+            # Проверяем, нужно ли вообще что-то чистить
+            any_cleaning_enabled = any(value for value in job.clean_fields.values() if isinstance(value, bool))
+            if not any_cleaning_enabled:
+                # Если все настройки отключены, ничего не делаем
+                return cleaned_fields
+
             # Чтение существующих EXIF данных
             exif_dict = piexif.load(str(job.file_path))
 
             # Сохранение удаляемых данных
-            if job.clean_fields.get("camera", True):
+            # Проверяем есть ли хотя бы одна настройка камеры включена
+            camera_fields_enabled = any([
+                job.clean_fields.get("exif_camera", True),
+                job.clean_fields.get("exif_author", True), 
+                job.clean_fields.get("exif_software", True),
+                job.clean_fields.get("camera_owner", True),
+                job.clean_fields.get("camera_serial", True),
+                job.clean_fields.get("camera", True)  # для обратной совместимости
+            ])
+            if camera_fields_enabled:
                 # Информация о камере
                 if "0th" in exif_dict:
                     ifd = exif_dict["0th"]
@@ -153,12 +168,23 @@ class ImageHandler(BaseHandler):
                             except:
                                 cleaned_fields["user_comment"] = str(user_comment)
 
-            if job.clean_fields.get("gps", True):
+            # Проверяем есть ли хотя бы одна настройка GPS включена
+            gps_fields_enabled = any([
+                job.clean_fields.get("gps_coords", True),
+                job.clean_fields.get("gps_altitude", True),
+                job.clean_fields.get("gps", True)  # для обратной совместимости
+            ])
+            if gps_fields_enabled:
                 # GPS данные
                 if "GPS" in exif_dict and exif_dict["GPS"]:
                     cleaned_fields["gps_data"] = str(exif_dict["GPS"])
 
-            if job.clean_fields.get("created", True):
+            # Проверяем есть ли хотя бы одна настройка даты включена
+            date_fields_enabled = any([
+                job.clean_fields.get("exif_datetime", True),
+                job.clean_fields.get("created", True)  # для обратной совместимости
+            ])
+            if date_fields_enabled:
                 # Даты создания
                 if "Exif" in exif_dict:
                     exif_ifd = exif_dict["Exif"]
@@ -194,7 +220,7 @@ class ImageHandler(BaseHandler):
                     ]:
                         new_exif_dict["0th"][tag] = value
                     # Камера и персональные данные - удаляем если указано
-                    elif not job.clean_fields.get("camera", True) and tag in [
+                    elif not camera_fields_enabled and tag in [
                         piexif.ImageIFD.Make,
                         piexif.ImageIFD.Model,
                         piexif.ImageIFD.Software,
@@ -214,12 +240,12 @@ class ImageHandler(BaseHandler):
                     ]:
                         new_exif_dict["Exif"][tag] = value
                     # Даты и персональные данные камеры - оставляем если не нужно удалять
-                    elif not job.clean_fields.get("created", True) and tag in [
+                    elif not date_fields_enabled and tag in [
                         piexif.ExifIFD.DateTimeOriginal,
                         piexif.ExifIFD.DateTimeDigitized,
                     ]:
                         new_exif_dict["Exif"][tag] = value
-                    elif not job.clean_fields.get("camera", True) and tag in [
+                    elif not camera_fields_enabled and tag in [
                         piexif.ExifIFD.CameraOwnerName,
                         piexif.ExifIFD.BodySerialNumber,
                         piexif.ExifIFD.LensSerialNumber,
@@ -228,7 +254,7 @@ class ImageHandler(BaseHandler):
                         new_exif_dict["Exif"][tag] = value
 
             # GPS данные - не копируем если нужно удалить
-            if not job.clean_fields.get("gps", True) and "GPS" in exif_dict:
+            if not gps_fields_enabled and "GPS" in exif_dict:
                 new_exif_dict["GPS"] = exif_dict["GPS"]
 
             # Открытие изображения и сохранение с новыми EXIF
