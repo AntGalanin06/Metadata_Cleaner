@@ -1,9 +1,6 @@
 name: Dependency Check
 
 on:
-  schedule:
-    # Запуск каждый понедельник в 09:00 UTC
-    - cron: '0 9 * * 1'
   workflow_dispatch:
 
 jobs:
@@ -37,4 +34,4 @@ jobs:
 
     - name: Run tests with latest dependencies
       run: |
-        poetry run python -m pytest tests/ -v --tb=short 
+        poetry run python -m pytest tests/ -v --tb=short
