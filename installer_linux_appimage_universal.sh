@@ -98,8 +98,20 @@ cp "$APPDIR/metadata-cleaner.desktop" "$APPDIR/usr/share/applications/"
 echo "🔨 Building AppImage..."
 APPIMAGE_OUTPUT="dist/MetadataCleaner-Linux-${ARCH}.AppImage"
 
-# Build the AppImage
-./"$APPIMAGETOOL" --appimage-extract-and-run --no-appstream "$APPDIR" "$APPIMAGE_OUTPUT"
+# Try with APPIMAGE_EXTRACT_AND_RUN first
+if APPIMAGE_EXTRACT_AND_RUN=1 ./"$APPIMAGETOOL" --no-appstream "$APPDIR" "$APPIMAGE_OUTPUT" 2>/dev/null; then
+    echo "✅ AppImage created successfully with FUSE"
+elif ./"$APPIMAGETOOL" --appimage-extract-and-run --no-appstream "$APPDIR" "$APPIMAGE_OUTPUT" 2>/dev/null; then
+    echo "✅ AppImage created successfully without FUSE"
+else
+    echo "⚠️  AppImageTool failed, creating portable archive instead..."
+    cd dist
+    tar czf "${APP_NAME}-Linux-Portable.tar.gz" MetadataCleaner/
+    cd ..
+    echo "✅ Portable archive created: dist/${APP_NAME}-Linux-Portable.tar.gz"
+    echo "📖 Usage: Extract archive and run ./MetadataCleaner"
+    exit 0
+fi
 
 # Make AppImage executable
 chmod +x "$APPIMAGE_OUTPUT"

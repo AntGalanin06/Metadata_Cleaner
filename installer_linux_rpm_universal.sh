@@ -64,7 +64,7 @@ mkdir -p %{buildroot}/usr/share/pixmaps
 mkdir -p %{buildroot}/usr/local/bin
 
 # Copy application files
-cp -r MetadataCleaner/* %{buildroot}/opt/metadata-cleaner/
+cp -r MetadataCleaner _internal %{buildroot}/opt/metadata-cleaner/
 chmod +x %{buildroot}/opt/metadata-cleaner/MetadataCleaner
 
 # Desktop file
