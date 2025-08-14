@@ -42,6 +42,24 @@ class MetadataCleanerApp:
         self.setup_page()
         self.build_ui()
 
+    def show_notification(self, message: str, color: str = ft.colors.GREEN_800, bgcolor: str = ft.colors.GREEN_100, action: str = None, action_color: str = ft.colors.GREEN):
+        """Показать уведомление с учетом настроек"""
+        if not self.settings.get_show_notifications():
+            return  # Не показываем уведомления если отключены
+        
+        snack_bar = ft.SnackBar(
+            content=ft.Text(message, color=color),
+            bgcolor=bgcolor,
+        )
+        
+        if action:
+            snack_bar.action = action
+            snack_bar.action_color = action_color
+        
+        self.page.snack_bar = snack_bar
+        snack_bar.open = True
+        self.page.update()
+
     def setup_page(self):
         """Настройка страницы"""
         self.page.title = f"{translator.get('app_title')} v{get_version()}"
@@ -346,14 +364,11 @@ class MetadataCleanerApp:
             }
 
             # Показываем уведомление о начале сканирования
-            self.page.snack_bar = ft.SnackBar(
-                content=ft.Text(
-                    translator.get("scanning_folder"), color=ft.colors.BLUE_800
-                ),
-                bgcolor=ft.colors.BLUE_100,
+            self.show_notification(
+                translator.get("scanning_folder"), 
+                color=ft.colors.BLUE_800, 
+                bgcolor=ft.colors.BLUE_100
             )
-            self.page.snack_bar.open = True
-            self.page.update()
 
             new_files = []
             total_found = 0
@@ -371,26 +386,17 @@ class MetadataCleanerApp:
             # Показываем результат сканирования
             if new_files:
                 self.add_files(new_files)
-                self.page.snack_bar = ft.SnackBar(
-                    content=ft.Text(
-                        translator.get(
-                            "files_found", count=len(new_files), total=total_found
-                        ),
-                        color=ft.colors.GREEN_800,
-                    ),
-                    bgcolor=ft.colors.GREEN_100,
+                self.show_notification(
+                    translator.get("files_found", count=len(new_files), total=total_found),
+                    color=ft.colors.GREEN_800,
+                    bgcolor=ft.colors.GREEN_100
                 )
             else:
-                self.page.snack_bar = ft.SnackBar(
-                    content=ft.Text(
-                        translator.get("no_files_found", total=total_found),
-                        color=ft.colors.ORANGE_800,
-                    ),
-                    bgcolor=ft.colors.ORANGE_100,
+                self.show_notification(
+                    translator.get("no_files_found", total=total_found),
+                    color=ft.colors.ORANGE_800,
+                    bgcolor=ft.colors.ORANGE_100
                 )
-
-            self.page.snack_bar.open = True
-            self.page.update()
 
     def add_files(self, file_paths: list[str]):
         """Добавление файлов в список"""
@@ -423,11 +429,7 @@ class MetadataCleanerApp:
             else:
                 message = translator.get("files_added", count=new_files_count)
 
-            self.page.snack_bar = ft.SnackBar(
-                content=ft.Text(message, color=ft.colors.GREEN_800),
-                bgcolor=ft.colors.GREEN_100,
-            )
-            self.page.snack_bar.open = True
+            self.show_notification(message)
 
         self.update_ui()
         self.update_empty_state()
@@ -606,6 +608,18 @@ class MetadataCleanerApp:
         if successful == total_files:
             self.action_bar.show_success_animation()
 
+        # Автозакрытие приложения если включено в настройках
+        if self.settings.get_auto_close_after_completion():
+            # Задержка 3 секунды чтобы пользователь видел результат
+            import threading
+            def auto_close():
+                import time
+                time.sleep(3.0)
+                if hasattr(self.page, 'window_close'):
+                    self.page.window_close()
+            
+            threading.Timer(3.0, auto_close).start()
+
         self.page.update()
         self.show_completion_snackbar(successful, total_files)
 
@@ -625,9 +639,11 @@ class MetadataCleanerApp:
             bgcolor=bgcolor,
         )
 
-        self.page.snack_bar = snackbar
-        snackbar.open = True
-        self.page.update()
+        # Используем наш метод для показа уведомления
+        if self.settings.get_show_notifications():
+            self.page.snack_bar = snackbar
+            snackbar.open = True
+            self.page.update()
 
     def show_detailed_results(self, e=None):
         """Показ детальных результатов"""
@@ -677,6 +693,8 @@ class MetadataCleanerApp:
             "theme": self.settings.get_theme(),
             "output_mode": self.settings.get_output_mode().value,
             "language": self.settings.get_language(),
+            "show_notifications": self.settings.get_show_notifications(),
+            "auto_close_after_completion": self.settings.get_auto_close_after_completion(),
             "file_type_settings": {
                 "image": self.settings.get_file_type_settings("image"),
                 "document": self.settings.get_file_type_settings("document"),
@@ -702,24 +720,17 @@ class MetadataCleanerApp:
             self.page.theme_mode = ft.ThemeMode.DARK
 
         # Обновление языка ПЕРЕД показом уведомления
-        new_lang = settings.get("language", "ru")
+        new_lang = settings.get("language", "en")
         language_changed = translator.language != new_lang
         if language_changed:
             translator.set_language(new_lang)
             self.rebuild_ui_for_language_change(keep_settings_open=True)
 
         # Показываем уведомление уже на правильном языке
-        self.page.snack_bar = ft.SnackBar(
-            content=ft.Text(
-                translator.get("settings_saved"), color=ft.colors.GREEN_800
-            ),
-            bgcolor=ft.colors.GREEN_100,
-            action=translator.get("ok"),
-            action_color=ft.colors.GREEN,
+        self.show_notification(
+            translator.get("settings_saved"),
+            action=translator.get("ok")
         )
-        self.page.snack_bar.open = True
-
-        self.page.update()
 
     def get_file_icon(self, file_path: str) -> ft.Icon:
         """Получение иконки в зависимости от типа файла"""

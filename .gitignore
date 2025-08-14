@@ -26,6 +26,8 @@ MANIFEST
 # PyInstaller
 *.manifest
 *.spec
+build/
+dist/
 
 # Coverage reports
 htmlcov/

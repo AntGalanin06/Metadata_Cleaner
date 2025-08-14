@@ -326,7 +326,7 @@ Speed depends on:
 - **Metadata type** — complex EXIF data requires more time
 - **Computer power** — SSD and more RAM speed up the process
 
-**About multithreading:** The application uses asynchronous processing with `asyncio.to_thread()` to perform operations in separate threads, ensuring UI responsiveness without blocking.
+**About performance:** The application uses asynchronous processing to ensure UI responsiveness during file processing.
 
 </details>
 

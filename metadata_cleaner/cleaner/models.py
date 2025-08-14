@@ -240,7 +240,7 @@ class AppSettings:
     output_mode: OutputMode = OutputMode.CREATE_COPY
     file_type_settings: dict[FileType, dict[str, bool]] = field(default_factory=dict)
     theme: str = "system"
-    language: str = "ru"
+    language: str = "en"
 
     def __post_init__(self):
         if not self.file_type_settings:

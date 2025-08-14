@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 import flet as ft
 
 from metadata_cleaner.gui.localization import translator
+from metadata_cleaner.cleaner.metadata_registry import MetadataRegistry
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -24,89 +25,24 @@ class SettingsDialog(ft.UserControl):
         self.dialog = None
         self.current_tab_index = 0  # Индекс активной вкладки
 
-        # Текущие настройки
+        # Текущие настройки - используем регистр для метаданных
         self.current_settings = {
             "theme": "system",
             "output_mode": "create_copy",
             "create_backup": True,
-            "language": "ru",
-            "max_threads": 4,
-            "show_notifications": True,
-            "auto_close_after_completion": False,
-            "show_detailed_logs": False,
-            "file_type_settings": {
-                "image": {
-                    # EXIF данные
-                    "exif_author": True,        # Автор фотографии
-                    "exif_copyright": True,     # Авторские права
-                    "exif_datetime": True,      # Дата и время съемки
-                    "exif_camera": True,        # Модель камеры и настройки
-                    "exif_software": True,      # ПО для обработки
-                    # GPS данные
-                    "gps_coords": True,         # GPS координаты
-                    "gps_altitude": True,       # Высота над уровнем моря
-                    # Персональные данные
-                    "camera_owner": True,       # Владелец камеры
-                    "camera_serial": True,      # Серийный номер камеры
-                    "user_comments": True,      # Комментарии пользователя
-                },
-                "document": {
-                    # Авторские данные
-                    "author": True,             # Автор документа
-                    "last_modified_by": True,   # Последний редактор
-                    "company": True,            # Компания
-                    # Временные данные
-                    "created": True,            # Дата создания
-                    "modified": True,           # Дата изменения
-                    "last_printed": True,       # Дата последней печати
-                    # Документооборот
-                    "revision": True,           # Номер ревизии
-                    "version": True,            # Версия документа
-                    "content_status": True,     # Статус контента
-                    "category": True,           # Категория
-                    "language": True,           # Язык документа
-                    "identifier": True,         # Уникальный идентификатор
-                    # Контент (по умолчанию НЕ удаляем)
-                    "title": False,             # Заголовок
-                    "subject": False,           # Тема
-                    "keywords": False,          # Ключевые слова
-                    "comments": False,          # Комментарии к содержанию
-                },
-                "pdf": {
-                    # Авторские данные
-                    "author": True,             # Автор PDF
-                    "creator": True,            # Создатель (программа)
-                    "producer": True,           # Производитель PDF
-                    # Временные данные
-                    "created": True,            # Дата создания
-                    "modified": True,           # Дата изменения
-                    # Контент (по умолчанию НЕ удаляем)
-                    "title": False,             # Заголовок документа
-                    "subject": False,           # Тема документа
-                    "keywords": False,          # Ключевые слова
-                },
-                "video": {
-                    # Авторские данные
-                    "author": True,             # Автор/создатель видео
-                    "encoder": True,            # Энкодер/программа записи
-                    # Временные данные
-                    "creation_time": True,      # Дата и время создания
-                    # GPS и локация
-                    "gps_coords": True,         # GPS координаты
-                    "location": True,           # Информация о местоположении
-                    # Техническая информация
-                    "major_brand": True,        # Основной бренд контейнера
-                    "compatible_brands": True,  # Совместимые форматы
-                    # Контент (по умолчанию НЕ удаляем)
-                    "title": False,             # Название видео
-                    "comment": False,           # Комментарии/описание
-                    "description": False,       # Подробное описание
-                },
-            },
+            "language": "en",
+            "file_type_settings": self._get_default_file_type_settings(),
         }
 
     def build(self):
         return ft.Container()
+
+    def _get_default_file_type_settings(self) -> dict[str, dict[str, bool]]:
+        """Получить настройки метаданных по умолчанию из регистра."""
+        settings = {}
+        for file_type in MetadataRegistry.get_supported_file_types():
+            settings[file_type] = MetadataRegistry.get_default_settings_for_file_type(file_type)
+        return settings
 
     def update_settings(self, settings: dict):
         """Обновить настройки диалога"""
@@ -238,15 +174,6 @@ class SettingsDialog(ft.UserControl):
             width=250,
         )
 
-        self.max_threads_slider = ft.Slider(
-            min=1,
-            max=16,
-            divisions=15,
-            value=self.current_settings.get("max_threads", 4),
-            label="Потоки: {value}",
-            width=300,
-        )
-
         self.show_notifications_switch = ft.Switch(
             label=translator.get("show_notifications"),
             value=self.current_settings.get("show_notifications", True),
@@ -257,18 +184,13 @@ class SettingsDialog(ft.UserControl):
             value=self.current_settings.get("auto_close_after_completion", False),
         )
 
-        self.show_detailed_logs_switch = ft.Switch(
-            label=translator.get("show_detailed_logs"),
-            value=self.current_settings.get("show_detailed_logs", False),
-        )
-
         self.language_dropdown = ft.Dropdown(
             label=translator.get("language"),
             options=[
                 ft.dropdown.Option("ru", translator.get("russian")),
                 ft.dropdown.Option("en", translator.get("english")),
             ],
-            value=self.current_settings.get("language", "ru"),
+            value=self.current_settings.get("language", "en"),
             width=150,
         )
 
@@ -293,33 +215,19 @@ class SettingsDialog(ft.UserControl):
                         size=16,
                         weight=ft.FontWeight.W_600,
                     ),
-                    ft.Container(height=8),
+                    ft.Container(height=8                    ),
                     self.output_mode_dropdown,
                     ft.Container(height=16),
                     ft.Text(
-                        translator.get("processing_settings"),
+                        translator.get("interface_settings"),
                         size=16,
                         weight=ft.FontWeight.W_600,
-                    ),
-                    ft.Container(height=8),
-                    ft.Row(
-                        [
-                            ft.Text(
-                                translator.get("max_threads"),
-                                size=14,
-                                weight=ft.FontWeight.W_500,
-                            ),
-                            self.max_threads_slider,
-                        ],
-                        spacing=20,
-                        alignment=ft.MainAxisAlignment.START,
                     ),
                     ft.Container(height=8),
                     ft.Column(
                         [
                             self.show_notifications_switch,
                             self.auto_close_switch,
-                            self.show_detailed_logs_switch,
                         ],
                         spacing=8,
                     ),
@@ -383,97 +291,47 @@ class SettingsDialog(ft.UserControl):
 
     def _build_metadata_tab(self, file_type: str) -> ft.Container:
         """Вкладка настроек метаданных для типа файла"""
-        settings = self.current_settings["file_type_settings"][file_type]
+        settings = self.current_settings["file_type_settings"].get(file_type, {})
 
-        # Определяем доступные поля для каждого типа (все реальные метаданные)
-        fields_config = {
-            "image": [
-                # EXIF данные
-                ("exif_author", "exif_author", "exif_author_desc"),
-                ("exif_copyright", "exif_copyright", "exif_copyright_desc"),
-                ("exif_datetime", "exif_datetime", "exif_datetime_desc"),
-                ("exif_camera", "exif_camera", "exif_camera_desc"),
-                ("exif_software", "exif_software", "exif_software_desc"),
-                # GPS данные  
-                ("gps_coords", "gps_coords", "gps_coords_desc"),
-                ("gps_altitude", "gps_altitude", "gps_altitude_desc"),
-                # Персональные данные
-                ("camera_owner", "camera_owner", "camera_owner_desc"),
-                ("camera_serial", "camera_serial", "camera_serial_desc"),
-                ("user_comments", "user_comments", "user_comments_desc"),
-            ],
-            "document": [
-                # Авторские данные
-                ("author", "author", "author_desc"),
-                ("last_modified_by", "last_modified_by", "last_modified_by_desc"),
-                ("company", "company", "company_desc"),
-                # Временные данные
-                ("created", "created", "created_desc"),
-                ("modified", "modified", "modified_desc"),
-                ("last_printed", "last_printed", "last_printed_desc"),
-                # Документооборот
-                ("revision", "revision", "revision_desc"),
-                ("version", "version", "version_desc"),
-                ("content_status", "content_status", "content_status_desc"),
-                ("category", "category", "category_desc"),
-                ("language", "language", "language_desc"),
-                ("identifier", "identifier", "identifier_desc"),
-                # Контент (по умолчанию НЕ удаляем)
-                ("title", "title", "title_desc"),
-                ("subject", "subject", "subject_desc"),
-                ("keywords", "keywords", "keywords_desc"),
-                ("comments", "comments", "comments_desc"),
-            ],
-            "pdf": [
-                # Авторские данные
-                ("author", "author", "author_desc"),
-                ("creator", "creator", "creator_desc"),
-                ("producer", "producer", "producer_desc"),
-                # Временные данные
-                ("created", "created", "created_desc"),
-                ("modified", "modified", "modified_desc"),
-                # Контент (по умолчанию НЕ удаляем)
-                ("title", "title", "title_desc"),
-                ("subject", "subject", "subject_desc"),
-                ("keywords", "keywords", "keywords_desc"),
-            ],
-            "video": [
-                # Авторские данные
-                ("author", "author", "author_desc"),
-                ("encoder", "encoder", "encoder_desc"),
-                # Временные данные
-                ("creation_time", "creation_time", "creation_time_desc"),
-                # GPS и локация
-                ("gps_coords", "gps_coords", "gps_coords_desc"),
-                ("location", "location", "location_desc"),
-                # Техническая информация
-                ("major_brand", "major_brand", "major_brand_desc"),
-                ("compatible_brands", "compatible_brands", "compatible_brands_desc"),
-                # Контент (по умолчанию НЕ удаляем)
-                ("title", "title", "title_desc"),
-                ("comment", "comment", "comment_desc"),
-                ("description", "description", "description_desc"),
-            ],
-        }
-
-        fields = fields_config.get(file_type, [])
+        # Получаем поля из регистра метаданных
+        metadata_fields = MetadataRegistry.get_fields_for_file_type(file_type)
+        
+        # Сортируем по приоритету и категориям
+        metadata_fields.sort(key=lambda x: (x.category.value, x.priority))
 
         # Создаем переключатели для каждого поля
         switches = []
+        current_category = None
         
-        for field_key, field_name_key, field_desc_key in fields:
-            field_name = translator.get(field_name_key)
-            field_desc = translator.get(field_desc_key)
+        for field in metadata_fields:
+            # Добавляем заголовок категории если она изменилась
+            if current_category != field.category:
+                current_category = field.category
+                category_name = translator.get(f"category_{field.category.value}")
+                switches.append(
+                    ft.Container(
+                        content=ft.Text(
+                            category_name,
+                            size=14,
+                            weight=ft.FontWeight.W_600,
+                            color=ft.colors.PRIMARY,
+                        ),
+                        padding=ft.padding.only(top=16, bottom=8),
+                    )
+                )
+            
+            field_name = translator.get(field.name_key)
+            field_desc = translator.get(field.description_key)
             
             switch = ft.Switch(
                 label=field_name,
-                value=settings.get(field_key, True),
-                data=field_key,  # Сохраняем ключ для обновления
-                on_change=lambda e, file_type=file_type, field_key=field_key: self._on_metadata_switch_change(e, file_type, field_key),
+                value=settings.get(field.key, field.default_remove),
+                data=field.key,  # Сохраняем ключ для обновления
+                on_change=lambda e, file_type=file_type, field_key=field.key: self._on_metadata_switch_change(e, file_type, field_key),
             )
 
             # Определяем цвет карточки по умолчанию (красный для удаляемых, зеленый для сохраняемых)
-            is_enabled = settings.get(field_key, True)
+            is_enabled = settings.get(field.key, field.default_remove)
             card_color, text_color = self._get_card_colors(is_enabled)
             
             switches.append(
@@ -568,9 +426,15 @@ class SettingsDialog(ft.UserControl):
 
     def _toggle_all_metadata(self, file_type: str, select_all: bool):
         """Переключить все метаданные для типа файла"""
-        # Обновляем настройки
-        for field_key in self.current_settings["file_type_settings"][file_type]:
-            self.current_settings["file_type_settings"][file_type][field_key] = select_all
+        # Получаем доступные поля из регистра
+        metadata_fields = MetadataRegistry.get_fields_for_file_type(file_type)
+        
+        # Обновляем настройки для всех доступных полей
+        if file_type not in self.current_settings["file_type_settings"]:
+            self.current_settings["file_type_settings"][file_type] = {}
+            
+        for field in metadata_fields:
+            self.current_settings["file_type_settings"][file_type][field.key] = select_all
         
         # Находим и обновляем только нужную вкладку
         self._update_metadata_tab(file_type)
@@ -975,87 +839,17 @@ class SettingsDialog(ft.UserControl):
     def _reset_defaults(self, e):
         """Сброс к настройкам по умолчанию"""
         # Сохраняем текущий язык для проверки
-        old_language = self.current_settings.get("language", "ru")
+        old_language = self.current_settings.get("language", "en")
         
-        # Восстанавливаем дефолтные настройки (как в __init__)
+        # Восстанавливаем дефолтные настройки из регистра
         self.current_settings = {
             "theme": "system",
             "output_mode": "create_copy",
             "create_backup": True,
-            "language": "ru",
-            "max_threads": 4,
+            "language": "en",
             "show_notifications": True,
             "auto_close_after_completion": False,
-            "show_detailed_logs": False,
-            "file_type_settings": {
-                "image": {
-                    # EXIF данные
-                    "exif_author": True,        # Автор фотографии
-                    "exif_copyright": True,     # Авторские права
-                    "exif_datetime": True,      # Дата и время съемки
-                    "exif_camera": True,        # Модель камеры и настройки
-                    "exif_software": True,      # ПО для обработки
-                    # GPS данные
-                    "gps_coords": True,         # GPS координаты
-                    "gps_altitude": True,       # Высота над уровнем моря
-                    # Персональные данные
-                    "camera_owner": True,       # Владелец камеры
-                    "camera_serial": True,      # Серийный номер камеры
-                    "user_comments": True,      # Комментарии пользователя
-                },
-                "document": {
-                    # Авторские данные
-                    "author": True,             # Автор документа
-                    "last_modified_by": True,   # Последний редактор
-                    "company": True,            # Компания
-                    # Временные данные
-                    "created": True,            # Дата создания
-                    "modified": True,           # Дата изменения
-                    "last_printed": True,       # Дата последней печати
-                    # Документооборот
-                    "revision": True,           # Номер ревизии
-                    "version": True,            # Версия документа
-                    "content_status": True,     # Статус контента
-                    "category": True,           # Категория
-                    "language": True,           # Язык документа
-                    "identifier": True,         # Уникальный идентификатор
-                    # Контент (по умолчанию НЕ удаляем)
-                    "title": False,             # Заголовок
-                    "subject": False,           # Тема
-                    "keywords": False,          # Ключевые слова
-                    "comments": False,          # Комментарии к содержанию
-                },
-                "pdf": {
-                    # Авторские данные
-                    "author": True,             # Автор PDF
-                    "creator": True,            # Создатель (программа)
-                    "producer": True,           # Производитель PDF
-                    # Временные данные
-                    "created": True,            # Дата создания
-                    "modified": True,           # Дата изменения
-                    # Контент (по умолчанию НЕ удаляем)
-                    "title": False,             # Заголовок документа
-                    "subject": False,           # Тема документа
-                    "keywords": False,          # Ключевые слова
-                },
-                "video": {
-                    # Авторские данные
-                    "author": True,             # Автор/создатель видео
-                    "encoder": True,            # Энкодер/программа записи
-                    # Временные данные
-                    "creation_time": True,      # Дата и время создания
-                    # GPS и локация
-                    "gps_coords": True,         # GPS координаты
-                    "location": True,           # Информация о местоположении
-                    # Техническая информация
-                    "major_brand": True,        # Основной бренд контейнера
-                    "compatible_brands": True,  # Совместимые форматы
-                    # Контент (по умолчанию НЕ удаляем)
-                    "title": False,             # Название видео
-                    "comment": False,           # Комментарии/описание
-                    "description": False,       # Подробное описание
-                },
-            },
+            "file_type_settings": self._get_default_file_type_settings(),
         }
 
         # Вызываем callback для сохранения новых настроек ПЕРЕД изменением переводчика
@@ -1064,7 +858,7 @@ class SettingsDialog(ft.UserControl):
             self.on_save(self.current_settings)
         
         # Если язык изменился, перестраиваем диалог с новыми переводами
-        if old_language != "ru":
+        if old_language != "en":
             # Полностью перестраиваем диалог с новыми переводами
             self.dialog.content = self._build_content()
             
@@ -1114,10 +908,8 @@ class SettingsDialog(ft.UserControl):
             "theme": self.theme_dropdown.value,
             "output_mode": self.output_mode_dropdown.value,
             "language": self.language_dropdown.value,
-            "max_threads": int(self.max_threads_slider.value),
             "show_notifications": self.show_notifications_switch.value,
             "auto_close_after_completion": self.auto_close_switch.value,
-            "show_detailed_logs": self.show_detailed_logs_switch.value,
             "file_type_settings": self.current_settings["file_type_settings"].copy(),
         }
 
@@ -1589,14 +1381,14 @@ Last Updated: June 25, 2025"""
 
     def _show_privacy_policy(self, e):
         """Показать политику конфиденциальности"""
-        lang = self.current_settings.get("language", "ru")
+        lang = self.current_settings.get("language", "en")
         content = self._get_privacy_policy_text(lang)
         title = translator.get("privacy_policy")
         self._show_document_dialog(title, content)
 
     def _show_terms_of_service(self, e):
         """Показать пользовательское соглашение"""
-        lang = self.current_settings.get("language", "ru")
+        lang = self.current_settings.get("language", "en")
         content = self._get_terms_of_service_text(lang)
         title = translator.get("terms_of_service")
         self._show_document_dialog(title, content)

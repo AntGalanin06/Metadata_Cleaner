@@ -115,21 +115,49 @@ def download_ffmpeg():
                 print("- ffmpeg.exe не найден в архиве")
     
     elif system == "Linux":
-        # Linux - используем johnvansickle.com (стабильные сборки)
-        url = "https://johnvansickle.com/ffmpeg/builds/ffmpeg-git-amd64-static.tar.xz"
+        # Linux - автоопределение архитектуры
+        arch = platform.machine().lower()
+        if arch in ["x86_64", "amd64"]:
+            url = "https://johnvansickle.com/ffmpeg/builds/ffmpeg-git-amd64-static.tar.xz"
+            arch_name = "amd64"
+        elif arch in ["aarch64", "arm64"]:
+            url = "https://johnvansickle.com/ffmpeg/builds/ffmpeg-git-aarch64-static.tar.xz"
+            arch_name = "aarch64"
+        else:
+            print(f"! Архитектура {arch} не поддерживается для автоскачивания FFmpeg")
+            print("Пожалуйста, установите FFmpeg вручную или поместите бинарник в bundled_ffmpeg/")
+            return ffmpeg_dir
+        
+        print(f"🔍 Определена архитектура Linux: {arch} → {arch_name}")
         
         with tempfile.TemporaryDirectory() as temp_dir:
             tar_path = Path(temp_dir) / "ffmpeg.tar.xz"
             
-            print(f"Загружаю с {url}...")
-            urllib.request.urlretrieve(url, tar_path)
+            print(f"Загружаю FFmpeg для {arch_name} с {url}...")
+            try:
+                urllib.request.urlretrieve(url, tar_path)
+            except Exception as e:
+                print(f"! Ошибка загрузки FFmpeg для {arch_name}: {e}")
+                print("Попробуем альтернативный источник...")
+                # Альтернативный источник для ARM64
+                if arch_name == "aarch64":
+                    alt_url = "https://evermeet.cx/pub/ffmpeg/ffmpeg.zip"
+                    print(f"Загружаю с альтернативного источника: {alt_url}")
+                    urllib.request.urlretrieve(alt_url, tar_path)
+                else:
+                    return ffmpeg_dir
             
             print("Распаковываю...")
             import tarfile
-            with tarfile.open(tar_path, 'r:xz') as tar_ref:
-                tar_ref.extractall(temp_dir)
+            try:
+                with tarfile.open(tar_path, 'r:xz') as tar_ref:
+                    tar_ref.extractall(temp_dir)
+            except:
+                # Попробуем как ZIP если это альтернативный источник
+                with zipfile.ZipFile(tar_path, 'r') as zip_ref:
+                    zip_ref.extractall(temp_dir)
             
-            # Находим ffmpeg в папке (обычно в корне архива)
+            # Находим ffmpeg в папке
             ffmpeg_binary = None
             for file in Path(temp_dir).rglob("ffmpeg"):
                 if file.is_file() and file.name == "ffmpeg":
@@ -140,9 +168,10 @@ def download_ffmpeg():
                 target_path = ffmpeg_dir / "ffmpeg"
                 shutil.copy2(ffmpeg_binary, target_path)
                 target_path.chmod(0o755)  # Делаем исполняемым
-                print(f"+ FFmpeg скачан: {target_path}")
+                print(f"+ FFmpeg для {arch_name} скачан: {target_path}")
             else:
-                print("- ffmpeg не найден в архиве")
+                print(f"- FFmpeg для {arch_name} не найден в архиве")
+                print("Попробуйте установить FFmpeg вручную: sudo apt install ffmpeg")
     
     else:
         print(f"! Автоскачивание FFmpeg для {system} не поддерживается")
@@ -254,10 +283,10 @@ if platform.system() == "Darwin":
         name='MetadataCleaner.app',
         icon='assets/icons/icon.icns',
         bundle_identifier='com.antgalanin.metadatacleaner',
-        version='1.0.0',
+        version='1.0.1',
         info_plist={
-            'CFBundleShortVersionString': '1.0.0',
-            'CFBundleVersion': '1.0.0',
+            'CFBundleShortVersionString': '1.0.1',
+            'CFBundleVersion': '1.0.1',
             'NSPrincipalClass': 'NSApplication',
             'NSAppleScriptEnabled': False,
             'LSUIElement': False,
@@ -292,9 +321,23 @@ def create_linux_appimage():
     
     print("Создание AppImage для Linux...")
     
-    # Проверить наличие appimagetool
+    # Проверить наличие appimagetool с поддержкой ARM64
     appimage_tool = None
-    for tool in ["appimagetool", "appimagetool-x86_64.AppImage"]:
+    
+    # Определяем архитектуру системы
+    system_arch = platform.machine().lower()
+    if system_arch in ["x86_64", "amd64"]:
+        arch_suffix = "x86_64"
+    elif system_arch in ["aarch64", "arm64"]:
+        arch_suffix = "aarch64"
+    else:
+        print(f"! Архитектура {system_arch} не поддерживается для AppImage")
+        return
+    
+    print(f"🔍 Определена архитектура для AppImage: {system_arch} → {arch_suffix}")
+    
+    # Проверяем существующие инструменты
+    for tool in ["appimagetool", f"appimagetool-{arch_suffix}.AppImage"]:
         try:
             run_command(f"which {tool}")
             appimage_tool = tool
@@ -303,16 +346,28 @@ def create_linux_appimage():
             continue
     
     if not appimage_tool:
-        print("AppImageTool не найден. Скачиваю...")
+        print(f"AppImageTool не найден. Скачиваю для {arch_suffix}...")
         try:
-            # Скачиваем appimagetool
-            tool_url = "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
-            urllib.request.urlretrieve(tool_url, "appimagetool-x86_64.AppImage")
-            run_command("chmod +x appimagetool-x86_64.AppImage")
-            appimage_tool = "./appimagetool-x86_64.AppImage"
+            # Скачиваем appimagetool для нужной архитектуры
+            tool_url = f"https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-{arch_suffix}.AppImage"
+            print(f"📥 Загружаю: {tool_url}")
+            urllib.request.urlretrieve(tool_url, f"appimagetool-{arch_suffix}.AppImage")
+            run_command(f"chmod +x appimagetool-{arch_suffix}.AppImage")
+            appimage_tool = f"./appimagetool-{arch_suffix}.AppImage"
+            print(f"✅ AppImageTool для {arch_suffix} скачан")
         except Exception as e:
-            print(f"! Не удалось скачать AppImageTool: {e}")
-            return
+            print(f"! Не удалось скачать AppImageTool для {arch_suffix}: {e}")
+            # Fallback на x86_64 версию если доступна
+            try:
+                print("🔄 Пробуем fallback на x86_64 версию...")
+                fallback_url = "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+                urllib.request.urlretrieve(fallback_url, "appimagetool-x86_64.AppImage")
+                run_command("chmod +x appimagetool-x86_64.AppImage")
+                appimage_tool = "./appimagetool-x86_64.AppImage"
+                print("✅ Fallback AppImageTool x86_64 скачан")
+            except Exception as e2:
+                print(f"! Fallback также не сработал: {e2}")
+                return
     
     # Создаем структуру AppDir
     appdir = Path("dist/MetadataCleaner.AppDir")
@@ -398,36 +453,66 @@ StartupWMClass=MetadataCleaner
 
 
 def create_macos_dmg():
-    """Создать DMG для macOS с мультиязычной лицензией"""
+    """Создать DMG для macOS с английской лицензией"""
     if platform.system() != "Darwin":
         return
 
+    print("🍎 Создание macOS DMG...")
+    
     # Проверить наличие create-dmg
     try:
         run_command("which create-dmg")
+        print("✅ create-dmg найден")
     except:
-        run_command("brew install create-dmg")
+        print("📦 Устанавливаю create-dmg...")
+        try:
+            run_command("brew install create-dmg")
+            print("✅ create-dmg установлен")
+        except Exception as e:
+            print(f"! Не удалось установить create-dmg: {e}")
+            print("💡 Установите вручную: brew install create-dmg")
+            return
 
-    # Копируем единый мультиязычный файл лицензии
+    # Проверяем что приложение собрано
+    app_path = Path("dist/MetadataCleaner.app")
+    if not app_path.exists():
+        print("❌ MetadataCleaner.app не найден в dist/")
+        print("💡 Сначала соберите приложение: python build.py")
+        return
+
+    # Копируем английский файл лицензии
     license_src = Path("docs/LICENSE_INSTALLER.txt")
     if license_src.exists():
         license_dst = Path("dist") / "LICENSE_INSTALLER.txt"
         shutil.copy(license_src, license_dst)
+        print("✅ Лицензия скопирована")
+    else:
+        print("⚠️  Файл лицензии не найден: docs/LICENSE_INSTALLER.txt")
 
-    # Создаем DMG
-    dmg_cmd = """create-dmg \\
+    # Создаем DMG с улучшенными параметрами
+    print("🔨 Создание DMG...")
+    try:
+        dmg_cmd = """create-dmg \\
   --volname 'Metadata Cleaner' \\
+  --volicon 'assets/icons/icon.icns' \\
   --window-pos 200 120 \\
-  --window-size 800 500 \\
+  --window-size 800 600 \\
   --icon-size 80 \\
-  --icon 'MetadataCleaner.app' 150 150 \\
-  --icon 'LICENSE_INSTALLER.txt' 150 300 \\
+  --icon 'MetadataCleaner.app' 200 150 \\
+  --icon 'LICENSE_INSTALLER.txt' 200 300 \\
   --hide-extension 'MetadataCleaner.app' \\
-  --app-drop-link 350 150 \\
+  --app-drop-link 600 150 \\
+  --background 'assets/screenshots/main-light-theme.png' \\
+  --text-size 14 \\
   'MetadataCleaner-macOS.dmg' \\
   'dist/'"""
-
-    run_command(dmg_cmd)
+        
+        run_command(dmg_cmd)
+        print("✅ macOS DMG создан: MetadataCleaner-macOS.dmg")
+        
+    except Exception as e:
+        print(f"! Ошибка создания DMG: {e}")
+        print("💡 Попробуйте создать DMG вручную или проверьте права доступа")
 
 
 def test_app():
@@ -447,31 +532,56 @@ def test_app():
 def main():
     """Главная функция"""
 
+    print("🚀 Запуск сборки Metadata Cleaner...")
+    print(f"🔍 Платформа: {platform.system()} {platform.machine()}")
+    
     # Проверить зависимости
     try:
         import PyInstaller
+        print("✅ PyInstaller найден")
     except ImportError:
-        run_command("pip install pyinstaller")
+        print("📦 Устанавливаю PyInstaller...")
+        try:
+            run_command("pip install pyinstaller")
+            print("✅ PyInstaller установлен")
+        except Exception as e:
+            print(f"❌ Не удалось установить PyInstaller: {e}")
+            print("💡 Установите вручную: pip install pyinstaller")
+            return
 
     # Создать ресурсы
+    print("\n📁 Создание ресурсов...")
     create_assets_folder()
     
     # Скачать FFmpeg
+    print("\n🎬 Скачивание FFmpeg...")
     ffmpeg_dir = download_ffmpeg()
 
     # Собрать приложение
-    build_app()
+    print("\n🔨 Сборка приложения...")
+    try:
+        build_app()
+        print("✅ Приложение собрано")
+    except Exception as e:
+        print(f"❌ Ошибка сборки: {e}")
+        return
 
     # Тестировать
+    print("\n🧪 Тестирование...")
     test_app()
 
-    # Создать установщик для macOS
+    # Создать установщики
+    print("\n📦 Создание установщиков...")
+    
     if platform.system() == "Darwin":
         create_macos_dmg()
-    
-    # Создать AppImage для Linux
-    if platform.system() == "Linux":
+    elif platform.system() == "Linux":
         create_linux_appimage()
+    elif platform.system() == "Windows":
+        print("🪟 Windows: используйте installer_windows_universal.nsi для создания .exe")
+    
+    print("\n🎉 Сборка завершена!")
+    print("📁 Результаты в папке dist/")
 
 
 if __name__ == "__main__":

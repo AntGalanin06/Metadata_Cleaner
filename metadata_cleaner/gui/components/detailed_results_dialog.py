@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import flet as ft
 
 from metadata_cleaner.gui.localization import translator
+from metadata_cleaner.cleaner.metadata_registry import MetadataRegistry
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -190,40 +191,132 @@ class DetailedResultsDialog(ft.UserControl):
             if cleaned_count > 0:
                 status_text = translator.get("metadata_cleaned_count", count=cleaned_count)
                 metadata_chips = []
+                
                 if result.cleaned_fields:
-                    for field in result.cleaned_fields.keys():
-                        metadata_chips.append(
-                            ft.Chip(
-                                label=ft.Text(field, size=10),
-                                bgcolor=ft.colors.GREEN_100,
-                                selected_color=ft.colors.GREEN,
+                    # Определяем тип файла для правильного маппинга
+                    file_type = self._get_file_type_from_path(result.job.file_path)
+                    
+                    # Получаем маппинг полей результата на настройки метаданных
+                    field_mapping = MetadataRegistry.map_result_fields_to_metadata(file_type, result.cleaned_fields)
+                    
+                    # Создаем красивые теги для групп метаданных
+                    for metadata_key, result_fields in field_mapping.items():
+                        field_info = MetadataRegistry.get_field_by_key(file_type, metadata_key)
+                        if field_info:
+                            # Используем человекочитаемое название из переводчика
+                            display_name = translator.get(field_info.name_key)
+                            category_color, category_icon = self._get_category_style(field_info.category)
+                            
+                            metadata_chips.append(
+                                ft.Container(
+                                    content=ft.Row(
+                                        [
+                                            ft.Icon(
+                                                category_icon,
+                                                size=14,
+                                                color=category_color,
+                                            ),
+                                            ft.Text(
+                                                display_name,
+                                                size=11,
+                                                weight=ft.FontWeight.W_500,
+                                                color=category_color,
+                                            ),
+                                        ],
+                                        spacing=4,
+                                        tight=True,
+                                    ),
+                                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                    bgcolor=f"{category_color}0F",  # 6% opacity
+                                    border=ft.border.all(1, f"{category_color}3D"),  # 24% opacity
+                                    border_radius=16,
+                                    tooltip=translator.get(field_info.description_key),
+                                )
                             )
-                        )
+                    
+                    # Добавляем необработанные поля если они есть
+                    processed_fields = set()
+                    for fields in field_mapping.values():
+                        processed_fields.update(fields)
+                    
+                    for field in result.cleaned_fields.keys():
+                        if field not in processed_fields:
+                            metadata_chips.append(
+                                ft.Container(
+                                    content=ft.Row(
+                                        [
+                                            ft.Icon(
+                                                ft.icons.LABEL_OUTLINE,
+                                                size=14,
+                                                color=ft.colors.BLUE_700,
+                                            ),
+                                            ft.Text(
+                                                self._format_field_name(field),
+                                                size=11,
+                                                weight=ft.FontWeight.W_500,
+                                                color=ft.colors.BLUE_700,
+                                            ),
+                                        ],
+                                        spacing=4,
+                                        tight=True,
+                                    ),
+                                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                    bgcolor=f"{ft.colors.BLUE_700}0F",  # 6% opacity
+                                    border=ft.border.all(1, f"{ft.colors.BLUE_700}3D"),  # 24% opacity
+                                    border_radius=16,
+                                    tooltip=f"Очищено поле: {self._format_field_name(field)} ({field})",
+                                )
+                            )
                 
                 # Создаем секцию для отображения всех очищенных метаданных
                 metadata_section = ft.Column(
                     [
-                        ft.Text(
-                            translator.get("cleaned_metadata"),
-                            size=12,
-                            weight=ft.FontWeight.W_500,
-                            color=ft.colors.ON_SURFACE_VARIANT,
-                        ),
                         ft.Row(
-                            metadata_chips,  # Показываем ВСЕ очищенные метаданные
-                            wrap=True,
-                            spacing=4,
+                            [
+                                ft.Icon(
+                                    ft.icons.CLEANING_SERVICES,
+                                    size=16,
+                                    color=ft.colors.GREEN_700,
+                                ),
+                                ft.Text(
+                                    translator.get("cleaned_metadata"),
+                                    size=12,
+                                    weight=ft.FontWeight.W_600,
+                                    color=ft.colors.GREEN_700,
+                                ),
+                            ],
+                            spacing=6,
+                        ),
+                        ft.Container(
+                            content=ft.Row(
+                                metadata_chips,  # Показываем ВСЕ очищенные метаданные с красивыми названиями
+                                wrap=True,
+                                spacing=6,
+                                run_spacing=6,
+                            ),
+                            padding=ft.padding.only(left=22),  # Отступ под иконку
                         ),
                     ],
                     spacing=8,
                 )
             else:
                 status_text = translator.get("no_metadata_found")
-                metadata_section = ft.Text(
-                    translator.get("file_had_no_metadata"),
-                    size=12,
-                    color=ft.colors.ON_SURFACE_VARIANT,
-                    italic=True,
+                metadata_section = ft.Row(
+                    [
+                        ft.Icon(
+                            ft.icons.INFO_OUTLINE,
+                            size=16,
+                            color=ft.colors.ORANGE_700,
+                        ),
+                        ft.Text(
+                            translator.get("file_had_no_metadata"),
+                            size=12,
+                            color=ft.colors.ON_SURFACE_VARIANT,
+                            italic=True,
+                            weight=ft.FontWeight.W_400,
+                        ),
+                    ],
+                    spacing=6,
                 )
         else:
             # Ошибка обработки
@@ -233,11 +326,27 @@ class DetailedResultsDialog(ft.UserControl):
                 size=24,
             )
             status_text = translator.get("processing_failed")
-            metadata_section = ft.Text(
-                result.message or translator.get("unknown_error"),
-                size=12,
-                color=ft.colors.RED,
-                italic=True,
+            metadata_section = ft.Container(
+                content=ft.Row(
+                    [
+                        ft.Icon(
+                            ft.icons.ERROR_OUTLINE,
+                            size=16,
+                            color=ft.colors.RED_700,
+                        ),
+                        ft.Text(
+                            result.message or translator.get("unknown_error"),
+                            size=12,
+                            color=ft.colors.RED_700,
+                            italic=True,
+                        ),
+                    ],
+                    spacing=6,
+                ),
+                padding=ft.padding.all(8),
+                bgcolor=ft.colors.RED_50,
+                border=ft.border.all(1, ft.colors.RED_200),
+                border_radius=8,
             )
 
         # Информация о времени обработки
@@ -312,3 +421,107 @@ class DetailedResultsDialog(ft.UserControl):
             self.dialog.content = self._build_content()
             if hasattr(self, "page") and self.page:
                 self.page.update()
+
+    def _get_file_type_from_path(self, file_path) -> str:
+        """Определить тип файла по расширению."""
+        extension = file_path.suffix.lower()
+        
+        if extension in ['.jpg', '.jpeg', '.png', '.gif', '.heic', '.heif', '.tiff', '.tif']:
+            return 'image'
+        elif extension in ['.docx', '.pptx']:
+            return 'document'
+        elif extension == '.pdf':
+            return 'pdf'
+        elif extension in ['.mp4', '.mov', '.avi', '.mkv']:
+            return 'video'
+        elif extension in ['.xlsx', '.xls']:
+            return 'document'  # Используем те же настройки что и для документов
+        else:
+            return 'unknown'
+
+    def _get_category_style(self, category) -> tuple[str, str]:
+        """Получить цвет и иконку для категории метаданных."""
+        from metadata_cleaner.cleaner.metadata_registry import MetadataCategory
+        
+        category_styles = {
+            MetadataCategory.AUTHOR: (ft.colors.PURPLE_700, ft.icons.PERSON),
+            MetadataCategory.DATETIME: (ft.colors.ORANGE_700, ft.icons.ACCESS_TIME),
+            MetadataCategory.LOCATION: (ft.colors.BLUE_700, ft.icons.LOCATION_ON),
+            MetadataCategory.CAMERA: (ft.colors.GREEN_700, ft.icons.CAMERA_ALT),
+            MetadataCategory.TECHNICAL: (ft.colors.INDIGO_700, ft.icons.SETTINGS),
+            MetadataCategory.CONTENT: (ft.colors.TEAL_700, ft.icons.DESCRIPTION),
+        }
+        
+        return category_styles.get(category, (ft.colors.BLUE_GREY_700, ft.icons.LABEL))
+
+    def _format_field_name(self, field_name: str) -> str:
+        """Преобразовать техническое название поля в читаемое."""
+        # Словарь для перевода технических названий в человеко-читаемые
+        field_translations = {
+            # Общие поля
+            "artist": "Автор",
+            "author": "Автор", 
+            "author_info": "Информация об авторе",
+            "camera_owner": "Владелец камеры",
+            "creator": "Создатель",
+            "copyright": "Авторские права",
+            
+            # Временные метки
+            "date_original": "Дата съемки",
+            "date_digitized": "Дата оцифровки", 
+            "created": "Дата создания",
+            "modified": "Дата изменения",
+            "last_printed": "Дата печати",
+            "creation_info": "Информация о создании",
+            
+            # Устройство и камера
+            "camera_make": "Производитель камеры",
+            "camera_model": "Модель камеры",
+            "software": "ПО",
+            "body_serial": "Серийный номер корпуса",
+            "lens_serial": "Серийный номер объектива",
+            
+            # Геолокация
+            "gps_data": "GPS данные",
+            "gps_info": "Информация GPS",
+            
+            # Комментарии и описания
+            "user_comment": "Комментарий пользователя",
+            "comments": "Комментарии",
+            "comment_info": "Информация комментариев",
+            "title": "Заголовок",
+            "title_info": "Информация заголовка",
+            "subject": "Тема",
+            "keywords": "Ключевые слова",
+            
+            # Документы
+            "last_modified_by": "Последний редактор",
+            "last_modified_by_alt": "Редактор (альт.)",
+            "company": "Компания",
+            "revision": "Версия",
+            "version": "Номер версии",
+            "content_status": "Статус содержимого",
+            "category": "Категория",
+            "language": "Язык",
+            "identifier": "Идентификатор",
+            
+            # PDF
+            "producer": "Производитель PDF",
+            
+            # Видео
+            "method": "Метод кодирования",
+            
+            # Специфичные для форматов
+            "gif_version": "Версия GIF",
+            "png_title": "Заголовок PNG",
+            "png_author": "Автор PNG",
+        }
+        
+        # Возвращаем переведенное название или форматированное техническое
+        if field_name in field_translations:
+            return field_translations[field_name]
+        else:
+            # Для неизвестных полей делаем читаемое форматирование
+            # Заменяем подчеркивания на пробелы и делаем первую букву заглавной
+            formatted = field_name.replace("_", " ").title()
+            return formatted

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from metadata_cleaner.cleaner.models import OutputMode
+from metadata_cleaner.cleaner.metadata_registry import MetadataRegistry
 
 
 class SettingsService:
@@ -39,92 +40,29 @@ class SettingsService:
         """Создать директорию для настроек если она не существует"""
         self._settings_file.parent.mkdir(parents=True, exist_ok=True)
 
+    def _get_default_file_type_settings(self) -> dict[str, dict[str, bool]]:
+        """Получить настройки метаданных по умолчанию из регистра."""
+        settings = {}
+        for file_type in MetadataRegistry.get_supported_file_types():
+            settings[file_type] = MetadataRegistry.get_default_settings_for_file_type(file_type)
+        return settings
+
     def _load_default_settings(self) -> dict[str, Any]:
         """Загрузить настройки по умолчанию"""
         return {
             # Основные настройки
             "theme": "system",
-            "language": "ru",
+            "language": "en",
             "output_mode": "create_copy",
-            # Настройки интерфейса
+            # Настройки окна
             "window_width": 1200,
             "window_height": 800,
             "window_maximized": False,
-            # Настройки обработки
-            "max_threads": 4,
-            "show_detailed_logs": False,
+            # Настройки интерфейса
             "auto_close_after_completion": False,
             "show_notifications": True,
-            # Детальные настройки метаданных по типам файлов
-            "file_type_settings": {
-                "image": {
-                    # EXIF данные
-                    "exif_author": True,        # Автор фотографии
-                    "exif_copyright": True,     # Авторские права
-                    "exif_datetime": True,      # Дата и время съемки
-                    "exif_camera": True,        # Модель камеры и настройки
-                    "exif_software": True,      # ПО для обработки
-                    # GPS данные
-                    "gps_coords": True,         # GPS координаты
-                    "gps_altitude": True,       # Высота над уровнем моря
-                    # Персональные данные
-                    "camera_owner": True,       # Владелец камеры
-                    "camera_serial": True,      # Серийный номер камеры
-                    "user_comments": True,      # Комментарии пользователя
-                },
-                "document": {
-                    # Авторские данные
-                    "author": True,             # Автор документа
-                    "last_modified_by": True,   # Последний редактор
-                    "company": True,            # Компания
-                    # Временные данные
-                    "created": True,            # Дата создания
-                    "modified": True,           # Дата изменения
-                    "last_printed": True,       # Дата последней печати
-                    # Документооборот
-                    "revision": True,           # Номер ревизии
-                    "version": True,            # Версия документа
-                    "content_status": True,     # Статус контента
-                    "category": True,           # Категория
-                    "language": True,           # Язык документа
-                    "identifier": True,         # Уникальный идентификатор
-                    # Контент (по умолчанию НЕ удаляем)
-                    "title": False,             # Заголовок
-                    "subject": False,           # Тема
-                    "keywords": False,          # Ключевые слова
-                    "comments": False,          # Комментарии к содержанию
-                },
-                "pdf": {
-                    # Авторские данные
-                    "author": True,             # Автор PDF
-                    "creator": True,            # Создатель (программа)
-                    "producer": True,           # Производитель PDF
-                    # Временные данные
-                    "created": True,            # Дата создания
-                    "modified": True,           # Дата изменения
-                    # Контент (по умолчанию НЕ удаляем)
-                    "title": False,             # Заголовок документа
-                    "subject": False,           # Тема документа
-                    "keywords": False,          # Ключевые слова
-                },
-                "video": {
-                    # Авторские данные
-                    "author": True,             # Автор/создатель видео
-                    "encoder": True,            # Энкодер/программа записи
-                    # Временные данные
-                    "creation_time": True,      # Дата и время создания
-                    # GPS и локация
-                    "gps_coords": True,         # GPS координаты
-                    "location": True,           # Информация о местоположении
-                    # Техническая информация
-                    "major_brand": True,        # Основной бренд контейнера
-                    "compatible_brands": True,  # Совместимые форматы
-                    # Контент (по умолчанию НЕ удаляем)
-                    "title": False,             # Название видео
-                    "comment": False,           # Комментарии/описание
-                    "description": False,       # Подробное описание
-                },
-            },
+            # Детальные настройки метаданных по типам файлов - используем регистр
+            "file_type_settings": self._get_default_file_type_settings(),
             # Настройки резервного копирования
             "backup_settings": {
                 "backup_location": "same_directory",  # 'same_directory' или путь
@@ -187,7 +125,7 @@ class SettingsService:
             return ft.ThemeMode.SYSTEM
 
     def get_language(self) -> str:
-        return self._settings.get("language", "ru")
+        return self._settings.get("language", "en")
 
     def get_output_mode(self) -> OutputMode:
         mode_str = self._settings.get("output_mode", "create_copy")
@@ -202,11 +140,11 @@ class SettingsService:
         else:
             return OutputMode.CREATE_COPY  # По умолчанию
 
-    def get_max_threads(self) -> int:
-        return self._settings.get("max_threads", 4)
-
     def get_show_notifications(self) -> bool:
         return self._settings.get("show_notifications", True)
+
+    def get_auto_close_after_completion(self) -> bool:
+        return self._settings.get("auto_close_after_completion", False)
 
     # Геттеры для настроек метаданных
     def get_file_type_settings(self, file_type: str) -> dict[str, bool]:
@@ -249,10 +187,6 @@ class SettingsService:
         self._settings["output_mode"] = mode.value
         self.save_settings()
 
-    def update_max_threads(self, threads: int):
-        self._settings["max_threads"] = max(1, min(16, threads))
-        self.save_settings()
-
     # Сеттеры для настроек метаданных
     def update_file_type_settings(self, file_type: str, settings: dict[str, bool]):
         """Обновить настройки метаданных для типа файла"""
@@ -289,7 +223,7 @@ class SettingsService:
     def update_settings(self, new_settings: dict[str, Any]):
         """Массовое обновление настроек"""
         # Обновляем простые значения напрямую
-        for key in ["theme", "language", "output_mode"]:
+        for key in ["theme", "language", "output_mode", "show_notifications", "auto_close_after_completion"]:
             if key in new_settings:
                 self._settings[key] = new_settings[key]
 
@@ -338,3 +272,16 @@ class SettingsService:
     def get_settings_file_path(self) -> Path:
         """Получить путь к файлу настроек"""
         return self._settings_file
+
+    # Методы для работы с регистром метаданных
+    def get_available_metadata_fields(self, file_type: str) -> list:
+        """Получить доступные поля метаданных для типа файла из регистра."""
+        return MetadataRegistry.get_fields_for_file_type(file_type)
+
+    def get_metadata_field_info(self, file_type: str, field_key: str):
+        """Получить информацию о поле метаданных."""
+        return MetadataRegistry.get_field_by_key(file_type, field_key)
+
+    def map_result_to_metadata(self, file_type: str, result_fields: dict[str, any]) -> dict[str, list[str]]:
+        """Сопоставить поля результата с настройками метаданных."""
+        return MetadataRegistry.map_result_fields_to_metadata(file_type, result_fields)

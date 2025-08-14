@@ -1,4 +1,4 @@
-; NSIS script for Metadata Cleaner with multilingual license
+; NSIS script for Metadata Cleaner with English-only license and multi-architecture support
 !define APPNAME "Metadata Cleaner"
 !define COMPANYNAME "AntGalanin06"
 !define DESCRIPTION "Application for removing metadata from files"
@@ -6,18 +6,42 @@
 !define VERSIONMINOR 0
 !define VERSIONBUILD 0
 
+; Auto-detect architecture
+!include "x64.nsh"
+
+!if ${RUNNINGX64}
+    !define ARCH "x64"
+    !define ARCH_DISPLAY "x64"
+!else
+    !define ARCH "x86"
+    !define ARCH_DISPLAY "x86"
+!endif
+
+; ARM64 support (if building on ARM64 or cross-compiling)
+!ifdef ARM64
+    !define ARCH "arm64"
+    !define ARCH_DISPLAY "ARM64"
+!endif
+
 RequestExecutionLevel admin
 
-InstallDir "$PROGRAMFILES\${COMPANYNAME}\${APPNAME}"
+; Architecture-specific install directory
+!if "${ARCH}" == "x64"
+    InstallDir "$PROGRAMFILES64\${COMPANYNAME}\${APPNAME}"
+!else if "${ARCH}" == "arm64"
+    InstallDir "$PROGRAMFILES64\${COMPANYNAME}\${APPNAME}"
+!else
+    InstallDir "$PROGRAMFILES\${COMPANYNAME}\${APPNAME}"
+!endif
 
-Name "${APPNAME}"
+Name "${APPNAME} (${ARCH_DISPLAY})"
 Icon "assets\icons\icon.ico"
-outFile "MetadataCleaner-Windows.exe"
+outFile "MetadataCleaner-Windows-${ARCH}.exe"
 
 !include LogicLib.nsh
 !include WinMessages.nsh
 
-; Multilingual license file
+; English-only license file
 LicenseData "docs\LICENSE_INSTALLER.txt"
 
 ; Installer pages

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "metadata-cleaner"
-version = "1.0.0"
+version = "1.0.1"
 description = "Современное приложение для безопасного удаления метаданных из различных типов файлов"
 authors = ["AntGalanin06 <antgalanin06@example.com>"]
 license = "MIT"
