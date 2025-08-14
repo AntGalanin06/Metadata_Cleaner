@@ -64,7 +64,7 @@ mkdir -p %{buildroot}/usr/share/pixmaps
 mkdir -p %{buildroot}/usr/local/bin
 
 # Copy application files
-cp -r * %{buildroot}/opt/metadata-cleaner/
+cp -r MetadataCleaner/* %{buildroot}/opt/metadata-cleaner/
 chmod +x %{buildroot}/opt/metadata-cleaner/MetadataCleaner
 
 # Desktop file
@@ -84,10 +84,8 @@ MimeType=image/jpeg;image/png;image/gif;application/pdf;application/vnd.openxmlf
 Keywords=metadata;exif;privacy;cleaner;
 DESKTOP_EOF
 
-# Copy icon if available
-if [ -f assets/icons/icon.png ]; then
-    cp assets/icons/icon.png %{buildroot}/usr/share/pixmaps/metadata-cleaner.png
-fi
+# Copy icon
+cp assets/icons/icon.png %{buildroot}/usr/share/pixmaps/metadata-cleaner.png
 
 # Create symbolic link
 cat > %{buildroot}/usr/local/bin/metadata-cleaner << 'LINK_EOF'
@@ -130,20 +128,29 @@ fi
 EOF
 
 # Create source archive
-if [[ -d "dist/MetadataCleaner" ]]; then
+if [[ -d "dist/MetadataCleaner" && -d "assets" ]]; then
     echo "📦 Creating source archive..."
-    cd dist
-    # Создаем архив с правильной структурой папок для RPM
-    tar czf "../rpmbuild/SOURCES/${APP_NAME}-${APP_VERSION}.tar.gz" --transform "s/MetadataCleaner/${APP_NAME}-${APP_VERSION}/" MetadataCleaner/
-    cd ..
+    # Create a temporary directory for archive contents
+    ARCHIVE_DIR="${APP_NAME}-${APP_VERSION}"
+    mkdir -p "$ARCHIVE_DIR"
+    
+    # Copy application and assets
+    cp -r dist/MetadataCleaner/* "$ARCHIVE_DIR/"
+    cp -r assets "$ARCHIVE_DIR/"
+    
+    # Create the archive
+    tar -czf "rpmbuild/SOURCES/${APP_NAME}-${APP_VERSION}.tar.gz" "$ARCHIVE_DIR"
+    
+    # Cleanup
+    rm -rf "$ARCHIVE_DIR"
+
     echo "✅ Archive created: rpmbuild/SOURCES/${APP_NAME}-${APP_VERSION}.tar.gz"
     ls -la "rpmbuild/SOURCES/"
-    # Проверяем содержимое архива
     echo "🔍 Checking archive contents:"
     tar tzf "rpmbuild/SOURCES/${APP_NAME}-${APP_VERSION}.tar.gz" | head -10
 else
-    echo "❌ Built application not found in dist/MetadataCleaner"
-    echo "Run 'python build.py' first"
+    echo "❌ Required directories 'dist/MetadataCleaner' or 'assets' not found."
+    echo "Run 'python build.py' first."
     exit 1
 fi
 

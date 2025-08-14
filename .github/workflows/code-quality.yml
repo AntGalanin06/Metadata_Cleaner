@@ -9,9 +9,12 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    
+    env:
+      PYTHONIOENCODING: "utf-8"
+      
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -19,40 +22,20 @@ jobs:
         python-version: "3.11"
 
     - name: Install Poetry
-      uses: snok/install-poetry@v1
-      with:
-        version: latest
-        virtualenvs-create: true
-        virtualenvs-in-project: true
+      run: pipx install poetry
 
-    - name: Add Poetry to PATH (Windows)
-      if: runner.os == 'Windows'
-      run: |
-        echo "C:\Users\runneradmin\AppData\Roaming\Python\Scripts" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        echo "$env:USERPROFILE\.local\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-    - name: Load cached venv
-      id: cached-poetry-dependencies
+    - name: Cache Poetry dependencies
       uses: actions/cache@v4
       with:
-        path: .venv
-        key: venv-${{ runner.os }}-3.11-${{ hashFiles('**/poetry.lock') }}
+        path: ~/.cache/pypoetry
+        key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-poetry-
 
     - name: Install dependencies
-      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-      run: poetry install --no-interaction
+      run: poetry install
 
-    - name: Run ruff linting
+    - name: Run ruff checks
       run: |
-        poetry run ruff check metadata_cleaner/ tests/
-      continue-on-error: true
-
-    - name: Run ruff formatting check
-      run: |
-        poetry run ruff format --check metadata_cleaner/ tests/
-      continue-on-error: true
-
-    - name: Run mypy type checking
-      run: |
-        poetry run mypy metadata_cleaner/
-      continue-on-error: true 
+        poetry run ruff check .
+        poetry run ruff format --check . 

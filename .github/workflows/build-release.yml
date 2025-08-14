@@ -13,273 +13,215 @@ on:
         type: boolean
 
 permissions:
-  contents: read
-  actions: read
+  contents: write
 
 jobs:
   build-windows:
     runs-on: windows-latest
+    env:
+      PYTHONIOENCODING: "utf-8"
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-        cache: 'pip'
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller
-        
-    - name: Build Windows executable
-      run: |
-        python build.py
-        
-    - name: Install NSIS
-      run: |
-        Invoke-WebRequest -Uri "https://nsis.sourceforge.io/mediawiki/images/4/4a/Nsis-3.08-setup.exe" -OutFile "nsis-setup.exe"
-        Start-Process -FilePath "nsis-setup.exe" -ArgumentList "/S" -Wait
-        
-    - name: Create Windows installer
-      run: |
-        & "C:\Program Files (x86)\NSIS\makensis.exe" "${{ github.workspace }}/installer_windows_universal.nsi"
-        
-    - name: Upload Windows artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: windows-installer
-        path: |
-          MetadataCleaner-Windows-*.exe
-          dist/
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      - name: Install project dependencies
+        run: poetry install --no-root
+
+      - name: Install PyInstaller
+        run: poetry run pip install pyinstaller
+
+      - name: Build Windows executable
+        run: poetry run python build.py
+
+      - name: Install NSIS
+        run: |
+          Invoke-WebRequest -Uri "https://nsis.sourceforge.io/mediawiki/images/4/4a/Nsis-3.08-setup.exe" -OutFile "nsis-setup.exe"
+          Start-Process -FilePath "nsis-setup.exe" -ArgumentList "/S" -Wait
+        shell: pwsh
+
+      - name: Create Windows installer
+        run: '& "C:Program Files (x86)NSISmakensis.exe" "${{ github.workspace }}/installer_windows_universal.nsi"'
+        shell: pwsh
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: |
+            MetadataCleaner-Windows-*.exe
+            dist/
 
   build-macos:
     runs-on: macos-latest
+    env:
+      PYTHONIOENCODING: "utf-8"
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-        cache: 'pip'
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller
-        brew install create-dmg
-        
-    - name: Build macOS app
-      run: |
-        python build.py
-        
-    - name: Create DMG
-      run: |
-        chmod +x "${{ github.workspace }}/installer_macos_universal.sh"
-        "${{ github.workspace }}/installer_macos_universal.sh"
-        
-    - name: Upload macOS artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: macos-dmg
-        path: |
-          dist/MetadataCleaner-macOS.dmg
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      - name: Install project dependencies
+        run: poetry install --no-root
+
+      - name: Install PyInstaller and create-dmg
+        run: |
+          poetry run pip install pyinstaller
+          brew install create-dmg
+
+      - name: Build macOS app
+        run: poetry run python build.py
+
+      - name: Create DMG
+        run: |
+          chmod +x "${{ github.workspace }}/installer_macos_universal.sh"
+          "${{ github.workspace }}/installer_macos_universal.sh"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: dist/MetadataCleaner-macOS.dmg
 
   build-linux:
     runs-on: ubuntu-latest
+    env:
+      PYTHONIOENCODING: "utf-8"
     strategy:
       matrix:
         include:
           - format: "deb"
             script: "installer_linux_deb_universal.sh"
-          - format: "rpm" 
+          - format: "rpm"
             script: "installer_linux_rpm_universal.sh"
           - format: "appimage"
             script: "installer_linux_appimage_universal.sh"
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-        cache: 'pip'
-        
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libgtk-3-dev \
-          libglib2.0-dev \
-          libcairo2-dev \
-          libpango1.0-dev \
-          desktop-file-utils \
-          fuse \
-          rpm \
-          alien \
-          build-essential
-          
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller
-        
-    - name: Build Linux application
-      run: |
-        python build.py
-        
-    - name: Create ${{ matrix.format }} package
-      run: |
-        chmod +x "${{ github.workspace }}/${{ matrix.script }}"
-        "${{ github.workspace }}/${{ matrix.script }}"
-        
-    - name: Upload Linux ${{ matrix.format }} artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: linux-${{ matrix.format }}
-        path: |
-          dist/*.deb
-          dist/*.rpm
-          dist/*.AppImage
-          dist/*.tar.gz
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-3-dev \
+            libglib2.0-dev \
+            libcairo2-dev \
+            libpango1.0-dev \
+            desktop-file-utils \
+            fuse \
+            rpm \
+            alien \
+            build-essential
+
+      - name: Install project dependencies
+        run: poetry install --no-root
+
+      - name: Install PyInstaller
+        run: poetry run pip install pyinstaller
+
+      - name: Build Linux application
+        run: poetry run python build.py
+
+      - name: Create ${{ matrix.format }} package
+        run: |
+          chmod +x "${{ github.workspace }}/${{ matrix.script }}"
+          "${{ github.workspace }}/${{ matrix.script }}"
+
+      - name: Upload Linux ${{ matrix.format }} artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.format }}
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.AppImage
+            dist/*.tar.gz
 
   create-release:
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.create_release == 'true'
+    env:
+      PYTHONIOENCODING: "utf-8"
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-        cache: 'pip'
-    
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts
-        
-    - name: Prepare release files
-      run: |
-        mkdir -p release
-        
-        # Windows
-        cp artifacts/windows-installer/MetadataCleaner-Windows-*.exe release/ || true
-        
-        # macOS
-        cp artifacts/macos-dmg/dist/MetadataCleaner-macOS.dmg release/ || true
-        
-        # Linux
-        cp artifacts/linux-deb/dist/*.deb release/ || true
-        cp artifacts/linux-rpm/dist/*.rpm release/ || true
-        cp artifacts/linux-appimage/dist/*.AppImage release/ || true
-        cp artifacts/linux-appimage/dist/*.tar.gz release/ || true
-        
-        # List files for debugging
-        ls -la release/
-        
-    - name: Get version
-      id: version
-      run: |
-        if [[ $GITHUB_REF == refs/tags/* ]]; then
-          VERSION=${GITHUB_REF#refs/tags/}
-        else
-          VERSION="v$(date +%Y%m%d-%H%M%S)"
-        fi
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ steps.version.outputs.version }}
-        name: Metadata Cleaner ${{ steps.version.outputs.version }}
-        body: |
-          # Metadata Cleaner Release ${{ steps.version.outputs.version }}
-          
-          ## 📦 Downloads
-          
-          ### Windows
-          - **MetadataCleaner-Windows-x64.exe** - Windows installer (.exe)
-          
-          ### macOS  
-          - **MetadataCleaner-macOS.dmg** - macOS disk image (.dmg)
-          
-          ### Linux
-          - **MetadataCleaner-Linux-x64.deb** - Debian/Ubuntu package (.deb)
-          - **MetadataCleaner-Linux-arm64.deb** - Debian/Ubuntu package (.deb)
-          - **MetadataCleaner-Linux-x64.rpm** - RHEL/CentOS/Fedora package (.rpm)
-          - **MetadataCleaner-Linux-arm64.rpm** - RHEL/CentOS/Fedora package (.rpm)
-          - **MetadataCleaner-Linux-x64.AppImage** - Universal Linux package (.AppImage)
-          - **MetadataCleaner-Linux-arm64.AppImage** - Universal Linux package (.AppImage)
-          
-          ## 🚀 Installation
-          
-          ### Windows
-          1. Download `MetadataCleaner-Windows-x64.exe` (for Intel/AMD) or `MetadataCleaner-Windows-arm64.exe` (for ARM)
-          2. Run the installer with administrator privileges
-          3. Follow the installation wizard
-          
-          ### macOS
-          1. Download `MetadataCleaner-macOS.dmg`
-          2. Open the DMG file
-          3. Drag the app to Applications folder
-          
-          ### Linux
-          
-          **Debian/Ubuntu:**
-          ```bash
-          # For x64/Intel systems:
-          sudo dpkg -i MetadataCleaner-Linux-x64.deb
-          # For ARM64 systems:
-          sudo dpkg -i MetadataCleaner-Linux-arm64.deb
-          # Fix dependencies if needed:
-          sudo apt-get install -f
-          ```
-          
-          **RHEL/CentOS/Fedora:**
-          ```bash
-          # For x64/Intel systems:
-          sudo rpm -ivh MetadataCleaner-Linux-x64.rpm
-          # For ARM64 systems:
-          sudo rpm -ivh MetadataCleaner-Linux-arm64.rpm
-          # Or with DNF:
-          sudo dnf install MetadataCleaner-Linux-[architecture].rpm
-          ```
-          
-          **Universal (AppImage):**
-          ```bash
-          # Download the appropriate version for your architecture
-          chmod +x MetadataCleaner-Linux-x64.AppImage    # For x64
-          chmod +x MetadataCleaner-Linux-arm64.AppImage  # For ARM64
-          ./MetadataCleaner-Linux-[architecture].AppImage
-          ```
-          
-          ## ✨ What's New
-          - Privacy-focused metadata removal
-          - Support for images, documents, PDFs, and videos
-          - Modern GUI with dark/light themes
-          - Batch processing capabilities
-          - Local processing - no internet required
-          
-          ## 🔐 Security
-          All file processing happens locally on your device. No data is transmitted over the internet.
-          
-          ## 📋 System Requirements
-          - **Windows:** Windows 10/11 (x64/ARM64)
-          - **macOS:** macOS 10.15+ (Intel/Apple Silicon)
-          - **Linux:** Ubuntu 18.04+ / equivalent distribution
-          
-          ## 🐛 Issues & Support
-          Report issues at: https://github.com/AntGalanin06/Metadata_Cleaner/issues
-        files: release/*
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          echo "--- Release files ---"
+          ls -lR release
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION="v$(date +%Y%m%d-%H%M%S)"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Metadata Cleaner ${{ steps.version.outputs.version }}
+          body_path: docs/RELEASE_TEMPLATE.md
+          files: release/*
+          draft: false
+          prerelease: false

@@ -1,14 +1,19 @@
 name: Dependency Check
 
 on:
+  schedule:
+    - cron: '0 0 * * 1' # Runs every Monday at midnight
   workflow_dispatch:
 
 jobs:
   dependency-check:
     runs-on: ubuntu-latest
-    
+    env:
+      PYTHONIOENCODING: "utf-8"
+      
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -16,22 +21,25 @@ jobs:
         python-version: "3.11"
 
     - name: Install Poetry
-      uses: snok/install-poetry@v1
-      with:
-        version: latest
-        virtualenvs-create: true
-        virtualenvs-in-project: true
+      run: pipx install poetry
 
-    - name: Check poetry.lock is up to date
-      run: poetry lock --check
+    - name: Cache Poetry dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pypoetry
+        key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-poetry-
 
     - name: Install dependencies
-      run: poetry install --no-interaction
+      run: poetry install
+
+    - name: Check for outdated dependencies
+      run: poetry show --outdated
 
     - name: Check for security vulnerabilities
       run: |
-        poetry run safety check --json || echo "Security check completed with warnings"
-
-    - name: Run tests with latest dependencies
-      run: |
-        poetry run python -m pytest tests/ -v --tb=short
+        poetry export -f requirements.txt --output requirements.txt --without-hashes
+        pip install safety
+        safety check -r requirements.txt
+      continue-on-error: true

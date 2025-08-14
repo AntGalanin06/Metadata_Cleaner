@@ -22,19 +22,22 @@ case "$SYSTEM_ARCH" in
         ;;
 esac
 
-PACKAGE_NAME="MetadataCleaner-Linux-${ARCH}.deb"
+PACKAGE_NAME_NO_EXT="MetadataCleaner-Linux-${ARCH}"
+PACKAGE_NAME="${PACKAGE_NAME_NO_EXT}.deb"
+PACKAGE_DIR="dist/${PACKAGE_NAME_NO_EXT}"
 echo "🔍 Detected architecture: $SYSTEM_ARCH → Debian: $ARCH"
 
 # Create package structure
 echo "📦 Building Debian package..."
-mkdir -p "dist/${PACKAGE_NAME}/DEBIAN"
-mkdir -p "dist/${PACKAGE_NAME}/opt/metadata-cleaner"
-mkdir -p "dist/${PACKAGE_NAME}/usr/share/applications"
-mkdir -p "dist/${PACKAGE_NAME}/usr/share/pixmaps"
-mkdir -p "dist/${PACKAGE_NAME}/usr/local/bin"
+rm -rf "$PACKAGE_DIR"
+mkdir -p "${PACKAGE_DIR}/DEBIAN"
+mkdir -p "${PACKAGE_DIR}/opt/metadata-cleaner"
+mkdir -p "${PACKAGE_DIR}/usr/share/applications"
+mkdir -p "${PACKAGE_DIR}/usr/share/pixmaps"
+mkdir -p "${PACKAGE_DIR}/usr/local/bin"
 
 # Control file
-cat > "dist/${PACKAGE_NAME}/DEBIAN/control" << EOF
+cat > "${PACKAGE_DIR}/DEBIAN/control" << EOF
 Package: ${APP_NAME}
 Version: ${APP_VERSION}
 Section: utils
@@ -52,7 +55,7 @@ Homepage: https://github.com/AntGalanin06/Metadata_Cleaner
 EOF
 
 # Install script
-cat > "dist/${PACKAGE_NAME}/DEBIAN/postinst" << 'EOF'
+cat > "${PACKAGE_DIR}/DEBIAN/postinst" << 'EOF'
 #!/bin/bash
 set -e
 
@@ -71,7 +74,7 @@ echo "Launch from applications menu or run: metadata-cleaner"
 EOF
 
 # Uninstall script
-cat > "dist/${PACKAGE_NAME}/DEBIAN/prerm" << 'EOF'
+cat > "${PACKAGE_DIR}/DEBIAN/prerm" << 'EOF'
 #!/bin/bash
 set -e
 
@@ -82,13 +85,13 @@ fi
 EOF
 
 # Make scripts executable
-chmod 755 "dist/${PACKAGE_NAME}/DEBIAN/postinst"
-chmod 755 "dist/${PACKAGE_NAME}/DEBIAN/prerm"
+chmod 755 "${PACKAGE_DIR}/DEBIAN/postinst"
+chmod 755 "${PACKAGE_DIR}/DEBIAN/prerm"
 
 # Copy application files
 if [[ -d "dist/MetadataCleaner" ]]; then
-    cp -r "dist/MetadataCleaner"/* "dist/${PACKAGE_NAME}/opt/metadata-cleaner/"
-    chmod +x "dist/${PACKAGE_NAME}/opt/metadata-cleaner/MetadataCleaner"
+    cp -r "dist/MetadataCleaner"/* "${PACKAGE_DIR}/opt/metadata-cleaner/"
+    chmod +x "${PACKAGE_DIR}/opt/metadata-cleaner/MetadataCleaner"
 else
     echo "❌ Built application not found in dist/MetadataCleaner"
     echo "Run 'python build.py' first"
@@ -97,11 +100,13 @@ fi
 
 # Copy icon
 if [[ -f "assets/icons/icon.png" ]]; then
-    cp "assets/icons/icon.png" "dist/${PACKAGE_NAME}/usr/share/pixmaps/metadata-cleaner.png"
+    cp "assets/icons/icon.png" "${PACKAGE_DIR}/usr/share/pixmaps/metadata-cleaner.png"
+else
+    echo "⚠️  Warning: Icon file not found at assets/icons/icon.png"
 fi
 
 # Desktop file
-cat > "dist/${PACKAGE_NAME}/usr/share/applications/metadata-cleaner.desktop" << EOF
+cat > "${PACKAGE_DIR}/usr/share/applications/metadata-cleaner.desktop" << EOF
 [Desktop Entry]
 Name=Metadata Cleaner
 Comment=Remove metadata from files
@@ -118,14 +123,17 @@ Keywords=metadata;exif;privacy;cleaner;
 EOF
 
 # Create symbolic link script
-cat > "dist/${PACKAGE_NAME}/usr/local/bin/metadata-cleaner" << EOF
+cat > "${PACKAGE_DIR}/usr/local/bin/metadata-cleaner" << EOF
 #!/bin/bash
 exec /opt/metadata-cleaner/MetadataCleaner "\$@"
 EOF
-chmod +x "dist/${PACKAGE_NAME}/usr/local/bin/metadata-cleaner"
+chmod +x "${PACKAGE_DIR}/usr/local/bin/metadata-cleaner"
 
 # Build package
-dpkg-deb --build "dist/${PACKAGE_NAME}"
+dpkg-deb --build "${PACKAGE_DIR}"
+
+# Rename the final package
+mv "dist/${PACKAGE_NAME_NO_EXT}.deb" "dist/${PACKAGE_NAME}"
 
 echo "✅ Debian package created: dist/${PACKAGE_NAME}"
 echo "📦 Install with: sudo dpkg -i dist/${PACKAGE_NAME}"
