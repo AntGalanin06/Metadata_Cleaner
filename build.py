@@ -45,7 +45,10 @@ def create_assets_folder():
 
 def download_ffmpeg():
     """Скачать FFmpeg для текущей платформы"""
-    safe_print("Загрузка FFmpeg для текущей платформы...")
+    if platform.system() == "Windows":
+        safe_print("Downloading FFmpeg for current platform...")
+    else:
+        safe_print("Загрузка FFmpeg для текущей платформы...")
     
     system = platform.system()
     ffmpeg_dir = Path("bundled_ffmpeg")
@@ -58,7 +61,10 @@ def download_ffmpeg():
         ffmpeg_path = ffmpeg_dir / "ffmpeg"
 
     if ffmpeg_path.exists():
-        safe_print(f"+ FFmpeg уже существует: {ffmpeg_path}")
+        if platform.system() == "Windows":
+            safe_print(f"+ FFmpeg already exists: {ffmpeg_path}")
+        else:
+            safe_print(f"+ FFmpeg уже существует: {ffmpeg_path}")
         return ffmpeg_dir
     
     if system == "Darwin":
@@ -73,10 +79,16 @@ def download_ffmpeg():
         with tempfile.TemporaryDirectory() as temp_dir:
             zip_path = Path(temp_dir) / "ffmpeg.zip"
             
-            print(f"Загружаю с {url}...")
+            if platform.system() == "Windows":
+                print(f"Downloading from {url}...")
+            else:
+                print(f"Загружаю с {url}...")
             urllib.request.urlretrieve(url, zip_path)
             
-            print("Распаковываю...")
+            if platform.system() == "Windows":
+                print("Extracting...")
+            else:
+                print("Распаковываю...")
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(temp_dir)
             
@@ -91,9 +103,15 @@ def download_ffmpeg():
                 target_path = ffmpeg_dir / "ffmpeg"
                 shutil.copy2(ffmpeg_binary, target_path)
                 target_path.chmod(0o755)  # Делаем исполняемым
-                print(f"+ FFmpeg скачан: {target_path}")
+                if platform.system() == "Windows":
+                    print(f"+ FFmpeg downloaded: {target_path}")
+                else:
+                    print(f"+ FFmpeg скачан: {target_path}")
             else:
-                print("- FFmpeg не найден в архиве")
+                if platform.system() == "Windows":
+                    print("- FFmpeg not found in archive")
+                else:
+                    print("- FFmpeg не найден в архиве")
     
     elif system == "Windows":
         # Windows - используем gyan.dev (стабильные сборки)
@@ -102,10 +120,16 @@ def download_ffmpeg():
         with tempfile.TemporaryDirectory() as temp_dir:
             zip_path = Path(temp_dir) / "ffmpeg.zip"
             
-            print(f"Загружаю с {url}...")
+            if platform.system() == "Windows":
+                print(f"Downloading from {url}...")
+            else:
+                print(f"Загружаю с {url}...")
             urllib.request.urlretrieve(url, zip_path)
             
-            print("Распаковываю...")
+            if platform.system() == "Windows":
+                print("Extracting...")
+            else:
+                print("Распаковываю...")
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(temp_dir)
             
@@ -119,9 +143,15 @@ def download_ffmpeg():
             if ffmpeg_binary:
                 target_path = ffmpeg_dir / "ffmpeg.exe"
                 shutil.copy2(ffmpeg_binary, target_path)
-                print(f"+ FFmpeg скачан: {target_path}")
+                if platform.system() == "Windows":
+                    print(f"+ FFmpeg downloaded: {target_path}")
+                else:
+                    print(f"+ FFmpeg скачан: {target_path}")
             else:
-                print("- ffmpeg.exe не найден в архиве")
+                if platform.system() == "Windows":
+                    print("- ffmpeg.exe not found in archive")
+                else:
+                    print("- ffmpeg.exe не найден в архиве")
     
     elif system == "Linux":
         # Linux - автоопределение архитектуры
@@ -542,50 +572,50 @@ def main():
 
     # Проверяем платформу и используем соответствующие символы
     if platform.system() == "Windows":
-        safe_print("Запуск сборки Metadata Cleaner...")
-        safe_print(f"Платформа: {platform.system()} {platform.machine()}")
+        safe_print("Starting Metadata Cleaner build...")
+        safe_print(f"Platform: {platform.system()} {platform.machine()}")
         
         # Проверить зависимости
         try:
             import PyInstaller
-            safe_print("PyInstaller найден")
+            safe_print("PyInstaller found")
         except ImportError:
-            safe_print("Устанавливаю PyInstaller...")
+            safe_print("Installing PyInstaller...")
             try:
                 run_command("pip install pyinstaller")
-                safe_print("PyInstaller установлен")
+                safe_print("PyInstaller installed")
             except Exception as e:
-                safe_print(f"Не удалось установить PyInstaller: {e}")
-                safe_print("Установите вручную: pip install pyinstaller")
+                safe_print(f"Failed to install PyInstaller: {e}")
+                safe_print("Install manually: pip install pyinstaller")
                 return
 
         # Создать ресурсы
-        safe_print("\nСоздание ресурсов...")
+        safe_print("\nCreating resources...")
         create_assets_folder()
         
         # Скачать FFmpeg
-        safe_print("\nСкачивание FFmpeg...")
+        safe_print("\nDownloading FFmpeg...")
         ffmpeg_dir = download_ffmpeg()
 
         # Собрать приложение
-        safe_print("\nСборка приложения...")
+        safe_print("\nBuilding application...")
         try:
             build_app()
-            safe_print("Приложение собрано")
+            safe_print("Application built")
         except Exception as e:
-            safe_print(f"Ошибка сборки: {e}")
+            safe_print(f"Build error: {e}")
             return
 
         # Тестировать
-        safe_print("\nТестирование...")
+        safe_print("\nTesting...")
         test_app()
 
         # Создать установщики
-        safe_print("\nСоздание установщиков...")
-        safe_print("Windows: используйте installer_windows_universal.nsi для создания .exe")
+        safe_print("\nCreating installers...")
+        safe_print("Windows: use installer_windows_universal.nsi to create .exe")
         
-        safe_print("\nСборка завершена!")
-        safe_print("Результаты в папке dist/")
+        safe_print("\nBuild completed!")
+        safe_print("Results in dist/ folder")
     else:
         # Для macOS и Linux используем эмодзи
         safe_print("🚀 Запуск сборки Metadata Cleaner...")
