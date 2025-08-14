@@ -466,7 +466,7 @@ def create_macos_dmg():
     if platform.system() != "Darwin":
         return
 
-            safe_print("🍎 Создание macOS DMG...")
+    safe_print("🍎 Создание macOS DMG...")
     
     # Проверить наличие create-dmg
     try:
@@ -499,7 +499,7 @@ def create_macos_dmg():
         safe_print("⚠️  Файл лицензии не найден: docs/LICENSE_INSTALLER.txt")
 
     # Создаем DMG с улучшенными параметрами
-            safe_print("🔨 Создание DMG...")
+    safe_print("🔨 Создание DMG...")
     try:
         dmg_cmd = """create-dmg \\
   --volname 'Metadata Cleaner' \\
