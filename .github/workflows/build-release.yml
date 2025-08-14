@@ -12,6 +12,10 @@ on:
         default: false
         type: boolean
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -19,9 +23,10 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
+        cache: 'pip'
         
     - name: Install dependencies
       run: |
@@ -43,7 +48,7 @@ jobs:
         & "C:\Program Files (x86)\NSIS\makensis.exe" installer_windows_universal.nsi
         
     - name: Upload Windows artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: windows-installer
         path: |
@@ -56,9 +61,10 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
+        cache: 'pip'
         
     - name: Install dependencies
       run: |
@@ -77,14 +83,14 @@ jobs:
         ./installer_macos_universal.sh
         
     - name: Upload macOS artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: macos-dmg
         path: |
           dist/MetadataCleaner-macOS.dmg
 
   build-linux:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
@@ -98,9 +104,10 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
+        cache: 'pip'
         
     - name: Install system dependencies
       run: |
@@ -132,7 +139,7 @@ jobs:
         ./${{ matrix.script }}
         
     - name: Upload Linux ${{ matrix.format }} artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: linux-${{ matrix.format }}
         path: |
@@ -148,8 +155,14 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: artifacts
         
