@@ -502,7 +502,6 @@ def create_macos_dmg():
   --icon 'LICENSE_INSTALLER.txt' 200 300 \\
   --hide-extension 'MetadataCleaner.app' \\
   --app-drop-link 600 150 \\
-  --background 'assets/screenshots/main-light-theme.png' \\
   --text-size 14 \\
   'MetadataCleaner-macOS.dmg' \\
   'dist/'"""
