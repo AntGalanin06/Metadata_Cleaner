@@ -169,6 +169,14 @@ class SettingsService:
     def get_window_maximized(self) -> bool:
         return self._settings.get("window_maximized", False)
 
+    def get_show_notifications(self) -> bool:
+        """Получить настройку показа уведомлений"""
+        return self._settings.get("show_notifications", True)
+
+    def get_auto_close_after_completion(self) -> bool:
+        """Получить настройку автозакрытия после завершения"""
+        return self._settings.get("auto_close_after_completion", False)
+
     # Сеттеры для основных настроек
     def update_theme(self, theme: str):
         """Обновить тему"""

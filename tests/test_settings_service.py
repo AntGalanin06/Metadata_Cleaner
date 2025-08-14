@@ -31,7 +31,7 @@ class TestSettingsService(unittest.TestCase):
         
         # Проверяем значения по умолчанию
         self.assertEqual(service.get_theme(), "system")
-        self.assertEqual(service.get_language(), "ru")
+        self.assertEqual(service.get_language(), "en")
         self.assertEqual(service.get_output_mode(), OutputMode.CREATE_COPY)
 
     @mock.patch('metadata_cleaner.services.settings_service.SettingsService._get_settings_file_path')
@@ -197,7 +197,7 @@ class TestSettingsService(unittest.TestCase):
         # Должен загрузиться с настройками по умолчанию
         service = SettingsService()
         self.assertEqual(service.get_theme(), "system")
-        self.assertEqual(service.get_language(), "ru")
+        self.assertEqual(service.get_language(), "en")
 
     @mock.patch('metadata_cleaner.services.settings_service.SettingsService._get_settings_file_path')
     def test_save_to_nonexistent_directory(self, mock_path):
@@ -287,7 +287,8 @@ class TestSettingsService(unittest.TestCase):
             "theme": "dark",
             "language": "en",
             "output_mode": "replace",
-            "max_threads": 8
+            "show_notifications": True,
+            "auto_close_after_completion": False
         }
         
         service.update_settings(new_settings)
@@ -295,9 +296,9 @@ class TestSettingsService(unittest.TestCase):
         self.assertEqual(service.get_theme(), "dark")
         self.assertEqual(service.get_language(), "en")
         self.assertEqual(service.get_output_mode(), OutputMode.REPLACE)
-        # max_threads может не быть в update_settings или иметь ограничения
-        # Проверяем что значение разумное
-        self.assertGreaterEqual(service.get_max_threads(), 1)
+        # Проверяем новые настройки
+        self.assertTrue(service.get_show_notifications())
+        self.assertFalse(service.get_auto_close_after_completion())
 
 
 if __name__ == "__main__":
