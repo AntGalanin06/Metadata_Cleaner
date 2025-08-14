@@ -79,8 +79,8 @@ jobs:
         
     - name: Create DMG
       run: |
-        chmod +x installer_macos_universal.sh
-        ./installer_macos_universal.sh
+        chmod +x "${{ github.workspace }}/installer_macos_universal.sh"
+        "${{ github.workspace }}/installer_macos_universal.sh"
         
     - name: Upload macOS artifacts
       uses: actions/upload-artifact@v4
@@ -135,8 +135,8 @@ jobs:
         
     - name: Create ${{ matrix.format }} package
       run: |
-        chmod +x ${{ matrix.script }}
-        ./${{ matrix.script }}
+        chmod +x "${{ github.workspace }}/${{ matrix.script }}"
+        "${{ github.workspace }}/${{ matrix.script }}"
         
     - name: Upload Linux ${{ matrix.format }} artifacts
       uses: actions/upload-artifact@v4

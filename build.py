@@ -14,6 +14,15 @@ import zipfile
 from pathlib import Path
 
 
+def safe_print(text):
+    """Безопасный вывод с учетом платформы"""
+    if platform.system() == "Windows":
+        # Убираем эмодзи для Windows
+        text = text.replace("🚀", "").replace("🔍", "").replace("✅", "").replace("❌", "").replace("📦", "").replace("💡", "").replace("📁", "").replace("🎬", "").replace("🔨", "").replace("🧪", "").replace("🎉", "").replace("⚠️", "").replace("🪟", "").replace("🍎", "").replace("🐧", "")
+        # Убираем лишние пробелы
+        text = " ".join(text.split())
+    print(text)
+
 def run_command(cmd, cwd=None):
     """Выполнить команду в shell"""
     print(f"> {cmd}")
@@ -36,7 +45,7 @@ def create_assets_folder():
 
 def download_ffmpeg():
     """Скачать FFmpeg для текущей платформы"""
-    print("Загрузка FFmpeg для текущей платформы...")
+    safe_print("Загрузка FFmpeg для текущей платформы...")
     
     system = platform.system()
     ffmpeg_dir = Path("bundled_ffmpeg")
@@ -49,7 +58,7 @@ def download_ffmpeg():
         ffmpeg_path = ffmpeg_dir / "ffmpeg"
 
     if ffmpeg_path.exists():
-        print(f"+ FFmpeg уже существует: {ffmpeg_path}")
+        safe_print(f"+ FFmpeg уже существует: {ffmpeg_path}")
         return ffmpeg_dir
     
     if system == "Darwin":
@@ -128,7 +137,7 @@ def download_ffmpeg():
             print("Пожалуйста, установите FFmpeg вручную или поместите бинарник в bundled_ffmpeg/")
             return ffmpeg_dir
         
-        print(f"🔍 Определена архитектура Linux: {arch} → {arch_name}")
+        safe_print(f"Определена архитектура Linux: {arch} → {arch_name}")
         
         with tempfile.TemporaryDirectory() as temp_dir:
             tar_path = Path(temp_dir) / "ffmpeg.tar.xz"
@@ -334,7 +343,7 @@ def create_linux_appimage():
         print(f"! Архитектура {system_arch} не поддерживается для AppImage")
         return
     
-    print(f"🔍 Определена архитектура для AppImage: {system_arch} → {arch_suffix}")
+    safe_print(f"Определена архитектура для AppImage: {system_arch} → {arch_suffix}")
     
     # Проверяем существующие инструменты
     for tool in ["appimagetool", f"appimagetool-{arch_suffix}.AppImage"]:
@@ -350,21 +359,21 @@ def create_linux_appimage():
         try:
             # Скачиваем appimagetool для нужной архитектуры
             tool_url = f"https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-{arch_suffix}.AppImage"
-            print(f"📥 Загружаю: {tool_url}")
+            safe_print(f"📥 Загружаю: {tool_url}")
             urllib.request.urlretrieve(tool_url, f"appimagetool-{arch_suffix}.AppImage")
             run_command(f"chmod +x appimagetool-{arch_suffix}.AppImage")
             appimage_tool = f"./appimagetool-{arch_suffix}.AppImage"
-            print(f"✅ AppImageTool для {arch_suffix} скачан")
+            safe_print(f"✅ AppImageTool для {arch_suffix} скачан")
         except Exception as e:
             print(f"! Не удалось скачать AppImageTool для {arch_suffix}: {e}")
             # Fallback на x86_64 версию если доступна
             try:
-                print("🔄 Пробуем fallback на x86_64 версию...")
+                safe_print("🔄 Пробуем fallback на x86_64 версию...")
                 fallback_url = "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
                 urllib.request.urlretrieve(fallback_url, "appimagetool-x86_64.AppImage")
                 run_command("chmod +x appimagetool-x86_64.AppImage")
                 appimage_tool = "./appimagetool-x86_64.AppImage"
-                print("✅ Fallback AppImageTool x86_64 скачан")
+                safe_print("✅ Fallback AppImageTool x86_64 скачан")
             except Exception as e2:
                 print(f"! Fallback также не сработал: {e2}")
                 return
@@ -433,7 +442,7 @@ StartupWMClass=MetadataCleaner
     try:
         # Попробуем создать AppImage с APPIMAGE_EXTRACT_AND_RUN=1 для обхода проблем с FUSE
         run_command(f"APPIMAGE_EXTRACT_AND_RUN=1 {appimage_tool} {appdir} MetadataCleaner-Linux.AppImage")
-        print("✅ AppImage создан: MetadataCleaner-Linux.AppImage")
+        safe_print("✅ AppImage создан: MetadataCleaner-Linux.AppImage")
     except Exception as e:
         print(f"! Ошибка создания AppImage с FUSE: {e}")
         try:
@@ -446,8 +455,8 @@ StartupWMClass=MetadataCleaner
             try:
                 print("Создаю альтернативный Linux архив...")
                 run_command(f"cd dist && tar -czf MetadataCleaner-Linux.tar.gz MetadataCleaner")
-                print("✅ Альтернативный архив создан: dist/MetadataCleaner-Linux.tar.gz")
-                print("💡 Для установки: распакуйте архив и запустите installer_linux.sh")
+                safe_print("✅ Альтернативный архив создан: dist/MetadataCleaner-Linux.tar.gz")
+                safe_print("💡 Для установки: распакуйте архив и запустите installer_linux.sh")
             except Exception as e3:
                 print(f"! Не удалось создать даже архив: {e3}")
 
@@ -457,27 +466,27 @@ def create_macos_dmg():
     if platform.system() != "Darwin":
         return
 
-    print("🍎 Создание macOS DMG...")
+            safe_print("🍎 Создание macOS DMG...")
     
     # Проверить наличие create-dmg
     try:
         run_command("which create-dmg")
-        print("✅ create-dmg найден")
+        safe_print("✅ create-dmg найден")
     except:
-        print("📦 Устанавливаю create-dmg...")
+        safe_print("Устанавливаю create-dmg...")
         try:
             run_command("brew install create-dmg")
-            print("✅ create-dmg установлен")
+            safe_print("✅ create-dmg установлен")
         except Exception as e:
             print(f"! Не удалось установить create-dmg: {e}")
-            print("💡 Установите вручную: brew install create-dmg")
+            safe_print("💡 Установите вручную: brew install create-dmg")
             return
 
     # Проверяем что приложение собрано
     app_path = Path("dist/MetadataCleaner.app")
     if not app_path.exists():
-        print("❌ MetadataCleaner.app не найден в dist/")
-        print("💡 Сначала соберите приложение: python build.py")
+        safe_print("❌ MetadataCleaner.app не найден в dist/")
+        safe_print("💡 Сначала соберите приложение: python build.py")
         return
 
     # Копируем английский файл лицензии
@@ -485,12 +494,12 @@ def create_macos_dmg():
     if license_src.exists():
         license_dst = Path("dist") / "LICENSE_INSTALLER.txt"
         shutil.copy(license_src, license_dst)
-        print("✅ Лицензия скопирована")
+        safe_print("✅ Лицензия скопирована")
     else:
-        print("⚠️  Файл лицензии не найден: docs/LICENSE_INSTALLER.txt")
+        safe_print("⚠️  Файл лицензии не найден: docs/LICENSE_INSTALLER.txt")
 
     # Создаем DMG с улучшенными параметрами
-    print("🔨 Создание DMG...")
+            safe_print("🔨 Создание DMG...")
     try:
         dmg_cmd = """create-dmg \\
   --volname 'Metadata Cleaner' \\
@@ -507,11 +516,11 @@ def create_macos_dmg():
   'dist/'"""
         
         run_command(dmg_cmd)
-        print("✅ macOS DMG создан: MetadataCleaner-macOS.dmg")
+        safe_print("✅ macOS DMG создан: MetadataCleaner-macOS.dmg")
         
     except Exception as e:
         print(f"! Ошибка создания DMG: {e}")
-        print("💡 Попробуйте создать DMG вручную или проверьте права доступа")
+        safe_print("💡 Попробуйте создать DMG вручную или проверьте права доступа")
 
 
 def test_app():
@@ -531,56 +540,102 @@ def test_app():
 def main():
     """Главная функция"""
 
-    print("🚀 Запуск сборки Metadata Cleaner...")
-    print(f"🔍 Платформа: {platform.system()} {platform.machine()}")
-    
-    # Проверить зависимости
-    try:
-        import PyInstaller
-        print("✅ PyInstaller найден")
-    except ImportError:
-        print("📦 Устанавливаю PyInstaller...")
+    # Проверяем платформу и используем соответствующие символы
+    if platform.system() == "Windows":
+        safe_print("Запуск сборки Metadata Cleaner...")
+        safe_print(f"Платформа: {platform.system()} {platform.machine()}")
+        
+        # Проверить зависимости
         try:
-            run_command("pip install pyinstaller")
-            print("✅ PyInstaller установлен")
+            import PyInstaller
+            safe_print("PyInstaller найден")
+        except ImportError:
+            safe_print("Устанавливаю PyInstaller...")
+            try:
+                run_command("pip install pyinstaller")
+                safe_print("PyInstaller установлен")
+            except Exception as e:
+                safe_print(f"Не удалось установить PyInstaller: {e}")
+                safe_print("Установите вручную: pip install pyinstaller")
+                return
+
+        # Создать ресурсы
+        safe_print("\nСоздание ресурсов...")
+        create_assets_folder()
+        
+        # Скачать FFmpeg
+        safe_print("\nСкачивание FFmpeg...")
+        ffmpeg_dir = download_ffmpeg()
+
+        # Собрать приложение
+        safe_print("\nСборка приложения...")
+        try:
+            build_app()
+            safe_print("Приложение собрано")
         except Exception as e:
-            print(f"❌ Не удалось установить PyInstaller: {e}")
-            print("💡 Установите вручную: pip install pyinstaller")
+            safe_print(f"Ошибка сборки: {e}")
             return
 
-    # Создать ресурсы
-    print("\n📁 Создание ресурсов...")
-    create_assets_folder()
-    
-    # Скачать FFmpeg
-    print("\n🎬 Скачивание FFmpeg...")
-    ffmpeg_dir = download_ffmpeg()
+        # Тестировать
+        safe_print("\nТестирование...")
+        test_app()
 
-    # Собрать приложение
-    print("\n🔨 Сборка приложения...")
-    try:
-        build_app()
-        print("✅ Приложение собрано")
-    except Exception as e:
-        print(f"❌ Ошибка сборки: {e}")
-        return
+        # Создать установщики
+        safe_print("\nСоздание установщиков...")
+        safe_print("Windows: используйте installer_windows_universal.nsi для создания .exe")
+        
+        safe_print("\nСборка завершена!")
+        safe_print("Результаты в папке dist/")
+    else:
+        # Для macOS и Linux используем эмодзи
+        safe_print("🚀 Запуск сборки Metadata Cleaner...")
+        safe_print(f"🔍 Платформа: {platform.system()} {platform.machine()}")
+        
+        # Проверить зависимости
+        try:
+            import PyInstaller
+            safe_print("PyInstaller найден")
+        except ImportError:
+            safe_print("Устанавливаю PyInstaller...")
+            try:
+                run_command("pip install pyinstaller")
+                safe_print("PyInstaller установлен")
+            except Exception as e:
+                safe_print(f"❌ Не удалось установить PyInstaller: {e}")
+                safe_print("💡 Установите вручную: pip install pyinstaller")
+                return
 
-    # Тестировать
-    print("\n🧪 Тестирование...")
-    test_app()
+        # Создать ресурсы
+        safe_print("\n📁 Создание ресурсов...")
+        create_assets_folder()
+        
+        # Скачать FFmpeg
+        safe_print("\n🎬 Скачивание FFmpeg...")
+        ffmpeg_dir = download_ffmpeg()
 
-    # Создать установщики
-    print("\n📦 Создание установщиков...")
-    
-    if platform.system() == "Darwin":
-        create_macos_dmg()
-    elif platform.system() == "Linux":
-        create_linux_appimage()
-    elif platform.system() == "Windows":
-        print("🪟 Windows: используйте installer_windows_universal.nsi для создания .exe")
-    
-    print("\n🎉 Сборка завершена!")
-    print("📁 Результаты в папке dist/")
+        # Собрать приложение
+        safe_print("\n🔨 Сборка приложения...")
+        try:
+            build_app()
+            safe_print("Приложение собрано")
+        except Exception as e:
+            safe_print(f"❌ Ошибка сборки: {e}")
+            return
+
+        # Тестировать
+        safe_print("\n🧪 Тестирование...")
+        test_app()
+
+        # Создать установщики
+        safe_print("\nСоздание установщиков...")
+        
+        if platform.system() == "Darwin":
+            create_macos_dmg()
+        elif platform.system() == "Linux":
+            create_linux_appimage()
+        
+        safe_print("\n🎉 Сборка завершена!")
+        safe_print("📁 Результаты в папке dist/")
 
 
 if __name__ == "__main__":

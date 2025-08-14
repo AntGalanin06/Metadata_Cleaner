@@ -131,9 +131,16 @@ EOF
 
 # Create source archive
 if [[ -d "dist/MetadataCleaner" ]]; then
+    echo "📦 Creating source archive..."
     cd dist
-    tar czf "../rpmbuild/SOURCES/${APP_NAME}-${APP_VERSION}.tar.gz" MetadataCleaner/
+    # Создаем архив с правильной структурой папок для RPM
+    tar czf "../rpmbuild/SOURCES/${APP_NAME}-${APP_VERSION}.tar.gz" --transform "s/MetadataCleaner/${APP_NAME}-${APP_VERSION}/" MetadataCleaner/
     cd ..
+    echo "✅ Archive created: rpmbuild/SOURCES/${APP_NAME}-${APP_VERSION}.tar.gz"
+    ls -la "rpmbuild/SOURCES/"
+    # Проверяем содержимое архива
+    echo "🔍 Checking archive contents:"
+    tar tzf "rpmbuild/SOURCES/${APP_NAME}-${APP_VERSION}.tar.gz" | head -10
 else
     echo "❌ Built application not found in dist/MetadataCleaner"
     echo "Run 'python build.py' first"
