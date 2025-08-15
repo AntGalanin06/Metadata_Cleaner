@@ -112,6 +112,12 @@ jobs:
       run: |
         choco install nsis ffmpeg
     
+    - name: Set Windows encoding (Windows)
+      if: matrix.config.platform == 'windows'
+      run: |
+        echo "PYTHONIOENCODING=utf-8" >> $env:GITHUB_ENV
+        echo "PYTHONUTF8=1" >> $env:GITHUB_ENV
+    
     - name: Install system dependencies (macOS)
       if: matrix.config.platform == 'macos'
       run: |
