@@ -43,10 +43,10 @@ ruff = "^0.1.0"
 black = "^23.10.0"
 pre-commit = "^3.5.0"
 mypy = "^1.5.0"
-bandit = "^1.7.5"
-safety = "^3.0.0"
+bandit = {extras = ["toml"], version = "^1.7.5"}
+safety = "^2.3.4"
 psutil = "^5.9.0"
-radon = "^6.0.1"
+radon = "^5.1.0"
 pip-audit = "^2.6.0"
 
 [tool.poetry.scripts]
