@@ -1,6 +1,9 @@
 name: Release Pipeline
 
 on:
+  push:
+    tags:
+      - 'v*'  # Запускается при создании тегов вида v1.0.0, v1.0.1 и т.д.
   release:
     types: [published]
   workflow_dispatch:

@@ -61,7 +61,7 @@ jobs:
     - name: Run performance tests
       run: |
         echo "🚀 Running performance benchmarks..."
-        poetry run pytest tests/test_performance.py --runslow -v --tb=short || true
+        poetry run pytest tests/test_performance.py -m slow -v --tb=short || true
     
     - name: Generate performance report
       run: |
