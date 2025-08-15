@@ -1,16 +1,73 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 """Командная строка для Metadata Cleaner."""
 
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
+
+# Fix Windows Unicode encoding issues
+if sys.platform.startswith("win"):
+    # Set UTF-8 environment variable for Windows
+    os.environ["PYTHONIOENCODING"] = "utf-8"
+
+    # Try to configure stdout/stderr encoding
+    try:
+        import io
+
+        # Only reconfigure if we haven't already
+        if not hasattr(sys.stdout, "_wrapped_for_encoding"):
+            sys.stdout = io.TextIOWrapper(
+                sys.stdout.buffer, encoding="utf-8", errors="replace"
+            )
+            sys.stdout._wrapped_for_encoding = True
+        if not hasattr(sys.stderr, "_wrapped_for_encoding"):
+            sys.stderr = io.TextIOWrapper(
+                sys.stderr.buffer, encoding="utf-8", errors="replace"
+            )
+            sys.stderr._wrapped_for_encoding = True
+    except (AttributeError, io.UnsupportedOperation):
+        # If we can't configure encoding, we'll continue with defaults
+        pass
 
 from .cleaner import MetadataDispatcher
 from .cleaner.models import CleaningOptions
 from .services.settings_service import SettingsService
+
+
+def safe_print(text: str, file=None, use_fallback: bool = True):
+    """Safely print text handling encoding issues on Windows."""
+    try:
+        print(text, file=file)
+    except UnicodeEncodeError:
+        if use_fallback and sys.platform.startswith("win"):
+            # Try to encode with fallback on Windows
+            try:
+                # Use ASCII with ignore errors as last resort
+                fallback_text = text.encode("ascii", errors="ignore").decode("ascii")
+                print(fallback_text, file=file)
+            except Exception:
+                # Final fallback to English message
+                if "ошибка" in text.lower():
+                    print("Error occurred", file=file)
+                elif "прерван" in text.lower():
+                    print("Operation interrupted by user", file=file)
+                else:
+                    print(
+                        "Message could not be displayed due to encoding issues",
+                        file=file,
+                    )
+        else:
+            raise
+
+
+def safe_error_print(text: str):
+    """Safely print error text to stderr."""
+    safe_print(text, file=sys.stderr)
 
 
 def parse_args():
@@ -101,45 +158,45 @@ def process_files(
     errors = 0
 
     if not quiet:
-        print(f"Обработка {total_files} файлов...")
+        safe_print(f"Обработка {total_files} файлов...")
 
     for file_path in files:
         path = Path(file_path)
 
         if not path.exists():
             if not quiet:
-                print(f"Ошибка: Файл не найден: {file_path}")
+                safe_print(f"Ошибка: Файл не найден: {file_path}")
             errors += 1
             continue
 
         if not dispatcher.is_supported(file_path):
             if verbose and not quiet:
-                print(f"Пропущен неподдерживаемый файл: {file_path}")
+                safe_print(f"Пропущен неподдерживаемый файл: {file_path}")
             skipped += 1
             continue
 
         try:
             if verbose and not quiet:
-                print(f"Обработка: {file_path}")
+                safe_print(f"Обработка: {file_path}")
 
             result = dispatcher.process_file_with_options(file_path, options)
 
             if result.status.value == "success":
                 if not quiet:
-                    print(f"✓ Обработан: {file_path}")
+                    safe_print(f"✓ Обработан: {file_path}")
                 processed += 1
             else:
                 if not quiet:
-                    print(f"✗ Ошибка в файле {file_path}: {result.message}")
+                    safe_print(f"✗ Ошибка в файле {file_path}: {result.message}")
                 errors += 1
 
         except Exception as e:
             if not quiet:
-                print(f"✗ Исключение при обработке {file_path}: {e}")
+                safe_print(f"✗ Исключение при обработке {file_path}: {e}")
             errors += 1
 
     if not quiet:
-        print(
+        safe_print(
             f"\nРезультат: {processed} обработано, {skipped} пропущено, {errors} ошибок"
         )
 
@@ -159,10 +216,10 @@ def main():
         return exit_code
 
     except KeyboardInterrupt:
-        print("\nОперация прервана пользователем")
+        safe_error_print("\nОперация прервана пользователем")
         sys.exit(1)
     except Exception as e:
-        print(f"Критическая ошибка: {e}")
+        safe_error_print(f"Критическая ошибка: {e}")
         sys.exit(1)
 
 

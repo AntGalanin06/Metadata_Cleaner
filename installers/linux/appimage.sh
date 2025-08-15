@@ -19,10 +19,10 @@ readonly BLUE='\033[0;34m'
 readonly NC='\033[0m' # No Color
 
 # Logging functions
-log_info() { echo -e "${BLUE}[INFO]${NC} $*"; }
-log_success() { echo -e "${GREEN}[SUCCESS]${NC} $*"; }
-log_warning() { echo -e "${YELLOW}[WARNING]${NC} $*"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
+log_info() { echo -e "${BLUE}[INFO]${NC} $*" >&2; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $*" >&2; }
+log_warning() { echo -e "${YELLOW}[WARNING]${NC} $*" >&2; }
+log_error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
 # Error handling
 trap 'log_error "Script failed at line $LINENO"' ERR

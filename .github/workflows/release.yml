@@ -103,12 +103,20 @@ jobs:
       if: matrix.config.platform == 'linux'
       run: |
         sudo apt-get update
-        sudo apt-get install -y libgtk-3-dev dpkg-deb rpm ffmpeg
+        sudo apt-get install -y libgtk-3-dev rpm ffmpeg build-essential
+        # Install dpkg-dev which contains dpkg-deb
+        sudo apt-get install -y dpkg-dev
     
     - name: Install system dependencies (Windows)
       if: matrix.config.platform == 'windows'
       run: |
         choco install nsis ffmpeg
+    
+    - name: Set Windows encoding (Windows)
+      if: matrix.config.platform == 'windows'
+      run: |
+        echo "PYTHONIOENCODING=utf-8" >> $env:GITHUB_ENV
+        echo "PYTHONUTF8=1" >> $env:GITHUB_ENV
     
     - name: Install system dependencies (macOS)
       if: matrix.config.platform == 'macos'
