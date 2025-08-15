@@ -128,7 +128,7 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.black]
-target-version = ["py312"]
+target-version = ["py311"]
 line-length = 88
 
 [tool.pytest.ini_options]

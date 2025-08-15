@@ -63,7 +63,7 @@ jobs:
         echo "[]" > outdated-deps.json
         
         # Count outdated packages
-        OUTDATED_COUNT=$(grep -c "^\s*[a-zA-Z]" outdated-deps.txt || echo "0")
+        OUTDATED_COUNT=$(grep -c "^[a-zA-Z]" outdated-deps.txt 2>/dev/null || echo "0")
         
         if [ "$OUTDATED_COUNT" -gt 0 ]; then
           echo "📊 Found $OUTDATED_COUNT outdated dependencies"
@@ -187,7 +187,6 @@ jobs:
       if: env.DEPENDENCIES_UPDATED == 'true'
       run: |
         echo "🔒 Running security scan on updated dependencies..."
-        poetry run pip install safety
         poetry run safety check --short-report || true
     
     - name: Generate update report

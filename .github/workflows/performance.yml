@@ -46,7 +46,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: .venv
-        key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-perf-${{ hashFiles('**/pyproject.toml') }}
+        key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-perf-${{ hashFiles('**/poetry.lock') }}
     
     - name: Install dependencies
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
@@ -74,9 +74,10 @@ jobs:
         echo "Generated on: $(date)" >> performance-report.md
         echo "" >> performance-report.md
         if [ -f benchmark-results.json ]; then
-          echo "Benchmark results saved to benchmark-results.json"
+          echo "Benchmark results saved to benchmark-results.json" >> performance-report.md
         else
-          echo "No benchmark results generated"
+          echo "No benchmark results generated - creating placeholder" >> performance-report.md
+          echo '{"placeholder": true, "timestamp": "'$(date)'"}' > benchmark-results.json
         fi
     
     - name: Upload performance artifacts
@@ -130,7 +131,9 @@ jobs:
     - name: Run memory profiling
       run: |
         echo "🧠 Running memory profiling..."
-        # Add memory profiling tests here when available
+        # Create a placeholder memory profile file
+        echo "Memory profiling placeholder - $(date)" > memory-profile.txt
+        echo "This is a placeholder for future memory profiling implementation" >> memory-profile.txt
         echo "Memory profiling setup complete"
     
     - name: Upload memory profiling results
