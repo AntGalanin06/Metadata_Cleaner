@@ -41,8 +41,10 @@ jobs:
           version="${GITHUB_REF#refs/tags/v}"
           tag="v${version}"
         else
-          # Extract version from pyproject.toml
-          version=$(grep -E '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
+          # Extract version from pyproject.toml with more robust parsing
+          version=$(python -c "import toml; print(toml.load('pyproject.toml')['tool']['poetry']['version'])" 2>/dev/null || \
+                   grep -E '^version = ' pyproject.toml | cut -d'"' -f2 || \
+                   echo "1.0.0")
           tag="v${version}"
         fi
         
@@ -153,20 +155,21 @@ jobs:
     - name: Verify installers
       run: |
         echo "=== Installers Created ==="
-        ls -la dist/*.AppImage dist/*.deb dist/*.rpm dist/*.exe dist/*.dmg 2>/dev/null || true
+        find dist/ -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" -o -name "*.exe" -o -name "*.dmg" 2>/dev/null | head -20 || true
         echo ""
         echo "=== Installer Details ==="
-        for file in dist/*.AppImage dist/*.deb dist/*.rpm dist/*.exe dist/*.dmg 2>/dev/null; do
+        find dist/ -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" -o -name "*.exe" -o -name "*.dmg" 2>/dev/null | while read -r file; do
           if [ -f "$file" ]; then
             echo "File: $file"
-            file "$file"
-            du -h "$file"
+            file "$file" 2>/dev/null || echo "Could not determine file type"
+            du -h "$file" 2>/dev/null || echo "Could not determine file size"
             echo ""
           fi
         done
     
     - name: Upload release artifacts
       uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: release-${{ matrix.config.platform }}
         path: dist/

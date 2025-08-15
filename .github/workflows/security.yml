@@ -118,9 +118,10 @@ jobs:
     - name: Run Semgrep static analysis
       run: |
         echo "🔎 Running Semgrep static analysis..."
-        python -m pip install semgrep
-        semgrep --config=auto --json --output=semgrep-report.json metadata_cleaner/ || true
-        semgrep --config=auto metadata_cleaner/ || true
+        # Install semgrep in the poetry environment
+        poetry run pip install semgrep
+        poetry run semgrep --config=auto --json --output=semgrep-report.json metadata_cleaner/ || true
+        poetry run semgrep --config=auto metadata_cleaner/ || true
     
     - name: Upload security analysis reports
       uses: actions/upload-artifact@v4
@@ -147,7 +148,12 @@ jobs:
       run: |
         echo "🔐 Scanning for secrets and sensitive information..."
         # Use TruffleHog Docker image with proper volume mounting
-        docker run --rm -v "${{ github.workspace }}:/pwd" trufflesecurity/trufflehog:latest filesystem /pwd --json > trufflehog-report.json || true
+        if command -v docker >/dev/null 2>&1; then
+          docker run --rm -v "${{ github.workspace }}:/pwd" trufflesecurity/trufflehog:latest filesystem /pwd --json > trufflehog-report.json || true
+        else
+          echo "Docker not available, skipping TruffleHog scan"
+          echo "[]" > trufflehog-report.json
+        fi
         
         # Show results (but don't fail the build for backwards compatibility)
         if [ -s trufflehog-report.json ]; then
@@ -221,6 +227,7 @@ jobs:
     
     - name: Upload security summary
       uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: security-summary-${{ github.run_id }}
         path: security-summary.md
