@@ -44,9 +44,16 @@ class TestCleanStatus(unittest.TestCase):
 
     def test_clean_status_ordering(self):
         """Тест порядка статусов обработки."""
-        statuses = [CleanStatus.PENDING, CleanStatus.PROCESSING, CleanStatus.SUCCESS, CleanStatus.ERROR]
+        statuses = [
+            CleanStatus.PENDING,
+            CleanStatus.PROCESSING,
+            CleanStatus.SUCCESS,
+            CleanStatus.ERROR,
+        ]
         for i, status in enumerate(statuses):
-            self.assertEqual(status.value, ["pending", "processing", "success", "error"][i])
+            self.assertEqual(
+                status.value, ["pending", "processing", "success", "error"][i]
+            )
 
 
 class TestOutputMode(unittest.TestCase):
@@ -120,15 +127,15 @@ class TestFileJob(unittest.TestCase):
     def test_file_job_clean_fields_modification(self):
         """Тест изменения clean_fields после создания."""
         job = FileJob(file_path=self.test_path)
-        
+
         # Изначально заполнен в __post_init__
         self.assertIsInstance(job.clean_fields, dict)
         self.assertGreater(len(job.clean_fields), 0)
-        
+
         # Добавляем/изменяем поля
         job.clean_fields["test_field"] = True
         job.clean_fields["author"] = False
-        
+
         self.assertTrue(job.clean_fields["test_field"])
         self.assertFalse(job.clean_fields["author"])
 
@@ -137,7 +144,7 @@ class TestFileJob(unittest.TestCase):
         # Строковый путь
         job1 = FileJob(file_path="test.jpg")
         self.assertIsInstance(job1.file_path, (str, Path))
-        
+
         # Path объект
         job2 = FileJob(file_path=Path("test.jpg"))
         self.assertIsInstance(job2.file_path, Path)
@@ -318,9 +325,16 @@ class TestCleaningOptions(unittest.TestCase):
 
         # Все опции должны быть включены
         option_fields = [
-            "clean_author", "clean_title", "clean_subject", "clean_keywords",
-            "clean_comments", "clean_created_date", "clean_modified_date",
-            "clean_gps_data", "clean_camera_info", "create_backup"
+            "clean_author",
+            "clean_title",
+            "clean_subject",
+            "clean_keywords",
+            "clean_comments",
+            "clean_created_date",
+            "clean_modified_date",
+            "clean_gps_data",
+            "clean_camera_info",
+            "create_backup",
         ]
 
         for field in option_fields:
@@ -344,9 +358,16 @@ class TestCleaningOptions(unittest.TestCase):
 
         # Все опции должны быть выключены
         option_fields = [
-            "clean_author", "clean_title", "clean_subject", "clean_keywords",
-            "clean_comments", "clean_created_date", "clean_modified_date",
-            "clean_gps_data", "clean_camera_info", "create_backup"
+            "clean_author",
+            "clean_title",
+            "clean_subject",
+            "clean_keywords",
+            "clean_comments",
+            "clean_created_date",
+            "clean_modified_date",
+            "clean_gps_data",
+            "clean_camera_info",
+            "create_backup",
         ]
 
         for field in option_fields:
@@ -399,7 +420,7 @@ class TestModelsIntegration(unittest.TestCase):
                 "author": True,
                 "gps_coords": True,
                 "camera_info": True,
-            }
+            },
         )
 
         # Создаем результат обработки

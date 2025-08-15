@@ -32,7 +32,7 @@ class TestMetadataDispatcher(unittest.TestCase):
             "modified": True,
         }
         self.dispatcher = MetadataDispatcher(self.mock_settings)
-        
+
         # Путь к тестовым файлам
         self.test_files_dir = Path(__file__).parent / "test_files"
 
@@ -104,10 +104,18 @@ class TestMetadataDispatcher(unittest.TestCase):
     def test_is_supported(self):
         """Тест проверки поддержки файлов."""
         supported_files = [
-            "test.jpg", "test.jpeg", "test.png", "test.gif", "test.heic", "test.heif",
-            "test.docx", "test.xlsx", "test.pptx",
+            "test.jpg",
+            "test.jpeg",
+            "test.png",
+            "test.gif",
+            "test.heic",
+            "test.heif",
+            "test.docx",
+            "test.xlsx",
+            "test.pptx",
             "test.pdf",
-            "test.mp4", "test.mov",
+            "test.mp4",
+            "test.mov",
         ]
 
         for filename in supported_files:
@@ -115,7 +123,11 @@ class TestMetadataDispatcher(unittest.TestCase):
                 self.assertTrue(self.dispatcher.is_supported(filename))
 
         unsupported_files = [
-            "test.txt", "test.exe", "test.unknown", "test.doc", "test.xls"
+            "test.txt",
+            "test.exe",
+            "test.unknown",
+            "test.doc",
+            "test.xls",
         ]
 
         for filename in unsupported_files:
@@ -128,13 +140,21 @@ class TestMetadataDispatcher(unittest.TestCase):
 
         expected_extensions = {
             # Изображения
-            ".jpg", ".jpeg", ".png", ".gif", ".heic", ".heif",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".gif",
+            ".heic",
+            ".heif",
             # Документы
-            ".docx", ".xlsx", ".pptx",
+            ".docx",
+            ".xlsx",
+            ".pptx",
             # PDF
             ".pdf",
             # Видео
-            ".mp4", ".mov",
+            ".mp4",
+            ".mov",
         }
 
         self.assertEqual(extensions, expected_extensions)
@@ -211,10 +231,10 @@ class TestDispatcherRealFiles(unittest.TestCase):
             "comments": False,
         }
         self.dispatcher = MetadataDispatcher(self.mock_settings)
-        
+
         # Путь к тестовым файлам
         self.test_files_dir = Path(__file__).parent / "test_files"
-        
+
         # Создаем временную директорию для тестов
         self.temp_dir = Path(tempfile.mkdtemp())
 
@@ -223,6 +243,7 @@ class TestDispatcherRealFiles(unittest.TestCase):
         if self.temp_dir.exists():
             # Попытка удалить директорию с повторными попытками для Windows
             import time
+
             for attempt in range(3):
                 try:
                     shutil.rmtree(self.temp_dir)
@@ -240,7 +261,7 @@ class TestDispatcherRealFiles(unittest.TestCase):
         source = self.test_files_dir / filename
         if not source.exists():
             self.skipTest(f"Тестовый файл {filename} не найден")
-        
+
         dest = self.temp_dir / filename
         shutil.copy2(source, dest)
         return dest
@@ -248,9 +269,9 @@ class TestDispatcherRealFiles(unittest.TestCase):
     def test_process_image_jpg(self):
         """Тест обработки JPEG изображения."""
         test_file = self._copy_test_file("test_image.jpg")
-        
+
         result = self.dispatcher.process_file(test_file)
-        
+
         self.assertEqual(result.status, CleanStatus.SUCCESS)
         self.assertEqual(result.job.file_path, test_file)
         self.assertIsNotNone(result.job.output_path)
@@ -259,9 +280,9 @@ class TestDispatcherRealFiles(unittest.TestCase):
     def test_process_image_jpeg(self):
         """Тест обработки JPEG изображения с расширением .jpeg."""
         test_file = self._copy_test_file("test_image.jpeg")
-        
+
         result = self.dispatcher.process_file(test_file)
-        
+
         self.assertEqual(result.status, CleanStatus.SUCCESS)
         self.assertEqual(result.job.file_path, test_file)
         self.assertIsNotNone(result.job.output_path)
@@ -270,26 +291,26 @@ class TestDispatcherRealFiles(unittest.TestCase):
     def test_process_image_png(self):
         """Тест обработки PNG изображения."""
         test_file = self._copy_test_file("test_image.png")
-        
+
         result = self.dispatcher.process_file(test_file)
-        
+
         self.assertEqual(result.status, CleanStatus.SUCCESS)
         self.assertEqual(result.job.file_path, test_file)
 
     def test_process_image_gif(self):
         """Тест обработки GIF изображения."""
         test_file = self._copy_test_file("test_image.gif")
-        
+
         result = self.dispatcher.process_file(test_file)
-        
+
         self.assertEqual(result.status, CleanStatus.SUCCESS)
 
     def test_process_document_docx(self):
         """Тест обработки DOCX документа."""
         test_file = self._copy_test_file("test_document.docx")
-        
+
         result = self.dispatcher.process_file(test_file)
-        
+
         self.assertEqual(result.status, CleanStatus.SUCCESS)
         self.assertEqual(result.job.file_path, test_file)
         self.assertIsNotNone(result.job.output_path)
@@ -298,52 +319,52 @@ class TestDispatcherRealFiles(unittest.TestCase):
     def test_process_document_xlsx(self):
         """Тест обработки XLSX документа."""
         test_file = self._copy_test_file("test_spreadsheet.xlsx")
-        
+
         result = self.dispatcher.process_file(test_file)
-        
+
         self.assertEqual(result.status, CleanStatus.SUCCESS)
 
     def test_process_document_pptx(self):
         """Тест обработки PPTX презентации."""
         test_file = self._copy_test_file("test_presentation.pptx")
-        
+
         result = self.dispatcher.process_file(test_file)
-        
+
         self.assertEqual(result.status, CleanStatus.SUCCESS)
 
     def test_process_pdf(self):
         """Тест обработки PDF документа."""
         test_file = self._copy_test_file("test_document.pdf")
-        
+
         result = self.dispatcher.process_file(test_file)
-        
+
         self.assertEqual(result.status, CleanStatus.SUCCESS)
         self.assertEqual(result.job.file_path, test_file)
 
     def test_process_video_mp4(self):
         """Тест обработки MP4 видео."""
         test_file = self._copy_test_file("test_video.mp4")
-        
+
         result = self.dispatcher.process_file(test_file)
-        
+
         # Видео может не поддерживаться без ffmpeg
         self.assertIn(result.status, [CleanStatus.SUCCESS, CleanStatus.ERROR])
 
     def test_process_video_mov(self):
         """Тест обработки MOV видео."""
         test_file = self._copy_test_file("test_video.mov")
-        
+
         result = self.dispatcher.process_file(test_file)
-        
+
         # Видео может не поддерживаться без ffmpeg
         self.assertIn(result.status, [CleanStatus.SUCCESS, CleanStatus.ERROR])
 
     def test_process_nonexistent_file(self):
         """Тест обработки несуществующего файла."""
         nonexistent_file = self.temp_dir / "nonexistent.jpg"
-        
+
         result = self.dispatcher.process_file(nonexistent_file)
-        
+
         self.assertEqual(result.status, CleanStatus.ERROR)
         self.assertIn("no such file", result.message.lower())
 
@@ -352,40 +373,42 @@ class TestDispatcherRealFiles(unittest.TestCase):
         # Создаем текстовый файл
         unsupported_file = self.temp_dir / "test.txt"
         unsupported_file.write_text("Test content")
-        
+
         result = self.dispatcher.process_file(unsupported_file)
-        
+
         self.assertEqual(result.status, CleanStatus.ERROR)
         self.assertIn("unsupported", result.message.lower())
 
     def test_process_with_overwrite_mode(self):
         """Тест обработки с режимом перезаписи."""
         self.mock_settings.get_output_mode.return_value = OutputMode.REPLACE
-        
+
         test_file = self._copy_test_file("test_image.jpg")
         original_size = test_file.stat().st_size
-        
+
         result = self.dispatcher.process_file(test_file)
-        
+
         self.assertEqual(result.status, CleanStatus.SUCCESS)
         self.assertEqual(result.job.file_path, test_file)
         self.assertIsNone(result.job.output_path)  # Нет отдельного выходного файла
 
     def test_process_with_backup_mode(self):
         """Тест обработки с режимом создания резервной копии."""
-        self.mock_settings.get_output_mode.return_value = OutputMode.BACKUP_AND_OVERWRITE
-        
+        self.mock_settings.get_output_mode.return_value = (
+            OutputMode.BACKUP_AND_OVERWRITE
+        )
+
         test_file = self._copy_test_file("test_image.jpg")
-        
+
         result = self.dispatcher.process_file(test_file)
-        
+
         self.assertEqual(result.status, CleanStatus.SUCCESS)
         self.assertTrue(result.job.backup_enabled)
 
     def test_process_file_with_options(self):
         """Тест обработки файла с пользовательскими опциями."""
         test_file = self._copy_test_file("test_image.jpg")
-        
+
         options = CleaningOptions(
             clean_author=True,
             clean_gps_data=True,
@@ -398,9 +421,9 @@ class TestDispatcherRealFiles(unittest.TestCase):
             clean_modified_date=True,
             create_backup=False,
         )
-        
+
         result = self.dispatcher.process_file_with_options(test_file, options)
-        
+
         self.assertEqual(result.status, CleanStatus.SUCCESS)
 
     def test_multiple_files_processing(self):
@@ -411,12 +434,12 @@ class TestDispatcherRealFiles(unittest.TestCase):
             self._copy_test_file("test_document.docx"),
             self._copy_test_file("test_document.pdf"),
         ]
-        
+
         results = []
         for test_file in test_files:
             result = self.dispatcher.process_file(test_file)
             results.append(result)
-        
+
         # Все файлы должны быть успешно обработаны
         for result in results:
             self.assertEqual(result.status, CleanStatus.SUCCESS)
@@ -427,7 +450,7 @@ class TestDispatcherRealFiles(unittest.TestCase):
         from metadata_cleaner.cleaner.handlers.office import OfficeHandler
         from metadata_cleaner.cleaner.handlers.pdf import PDFHandler
         from metadata_cleaner.cleaner.handlers.video import VideoHandler
-        
+
         test_cases = [
             ("test.jpg", ImageHandler),
             ("test.docx", OfficeHandler),
@@ -435,7 +458,7 @@ class TestDispatcherRealFiles(unittest.TestCase):
             ("test.mp4", VideoHandler),
             ("test.txt", None),
         ]
-        
+
         for filename, expected_handler in test_cases:
             with self.subTest(filename=filename):
                 handler_type = self.dispatcher.get_handler_for_file(Path(filename))

@@ -53,27 +53,38 @@ class VideoHandler(BaseHandler):
             if not parser:
                 msg = f"Не удалось распознать видео файл: {job.file_path.name}"
                 raise MetadataProcessingError(msg)
-                
+
             metadata = extractMetadata(parser)
             if metadata:
                 # Сохранение информации об удаляемых метаданных
                 metadata_lines = metadata.exportPlaintext()
                 for line in metadata_lines:
                     line_lower = line.lower()
-                    if any(keyword in line_lower for keyword in ["creation", "date", "time"]):
+                    if any(
+                        keyword in line_lower
+                        for keyword in ["creation", "date", "time"]
+                    ):
                         cleaned_fields["creation_info"] = line.strip()
-                    elif any(keyword in line_lower for keyword in ["author", "artist", "creator", "encoder"]):
+                    elif any(
+                        keyword in line_lower
+                        for keyword in ["author", "artist", "creator", "encoder"]
+                    ):
                         cleaned_fields["author_info"] = line.strip()
                     elif any(keyword in line_lower for keyword in ["title"]):
                         cleaned_fields["title_info"] = line.strip()
-                    elif any(keyword in line_lower for keyword in ["comment", "description"]):
+                    elif any(
+                        keyword in line_lower for keyword in ["comment", "description"]
+                    ):
                         cleaned_fields["comment_info"] = line.strip()
-                    elif any(keyword in line_lower for keyword in ["gps", "location", "coordinate"]):
+                    elif any(
+                        keyword in line_lower
+                        for keyword in ["gps", "location", "coordinate"]
+                    ):
                         cleaned_fields["gps_info"] = line.strip()
 
             # Попытка очистки через ffmpeg
             success = self._clean_with_ffmpeg(job)
-            
+
             if not success:
                 # Fallback: просто копируем файл с предупреждением
                 output_path = job.output_path or job.file_path
@@ -94,45 +105,43 @@ class VideoHandler(BaseHandler):
         try:
             # Попробуем найти ffmpeg (включая встроенный)
             ffmpeg_paths = self._get_ffmpeg_paths()
-            
+
             ffmpeg_cmd = None
             for path in ffmpeg_paths:
                 try:
                     result = subprocess.run(
-                        [path, "-version"], 
-                        capture_output=True, 
-                        text=True, 
-                        timeout=5
+                        [path, "-version"], capture_output=True, text=True, timeout=5
                     )
                     if result.returncode == 0:
                         ffmpeg_cmd = path
                         break
                 except (FileNotFoundError, subprocess.TimeoutExpired):
                     continue
-                    
+
             if not ffmpeg_cmd:
                 return False
 
             output_path = job.output_path or job.file_path
-            temp_path = output_path.with_suffix('.tmp' + output_path.suffix)
+            temp_path = output_path.with_suffix(".tmp" + output_path.suffix)
 
             # Команда ffmpeg для полной очистки метаданных
             cmd = [
                 ffmpeg_cmd,
-                "-i", str(job.file_path),  # Входной файл
-                "-map_metadata", "-1",     # Удалить ВСЕ метаданные
-                "-map_chapters", "-1",     # Удалить главы
-                "-c", "copy",              # Копировать без перекодирования
-                "-y",                      # Перезаписать без вопросов
-                str(temp_path)             # Временный выходной файл
+                "-i",
+                str(job.file_path),  # Входной файл
+                "-map_metadata",
+                "-1",  # Удалить ВСЕ метаданные
+                "-map_chapters",
+                "-1",  # Удалить главы
+                "-c",
+                "copy",  # Копировать без перекодирования
+                "-y",  # Перезаписать без вопросов
+                str(temp_path),  # Временный выходной файл
             ]
 
             # Выполняем команду
             result = subprocess.run(
-                cmd, 
-                capture_output=True, 
-                text=True, 
-                timeout=300  # 5 минут максимум
+                cmd, capture_output=True, text=True, timeout=300  # 5 минут максимум
             )
 
             if result.returncode == 0:
@@ -146,19 +155,24 @@ class VideoHandler(BaseHandler):
                     temp_path.unlink()
                 return False
 
-        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError, OSError):
+        except (
+            subprocess.TimeoutExpired,
+            subprocess.CalledProcessError,
+            FileNotFoundError,
+            OSError,
+        ):
             return False
         except Exception:
             return False
-        
+
         return False
 
     def _get_ffmpeg_paths(self) -> list[str]:
         """Получить список путей для поиска FFmpeg."""
         paths = []
-        
+
         # 1. Встроенный FFmpeg (приоритет!)
-        if getattr(sys, 'frozen', False):
+        if getattr(sys, "frozen", False):
             # Запущено как PyInstaller bundle
             bundle_dir = Path(sys._MEIPASS)
             bundled_ffmpeg = bundle_dir / "bundled_ffmpeg" / "ffmpeg"
@@ -173,28 +187,27 @@ class VideoHandler(BaseHandler):
                 local_ffmpeg = Path("bundled_ffmpeg") / "ffmpeg.exe"
             if local_ffmpeg.exists():
                 paths.append(str(local_ffmpeg))
-        
+
         # 2. Системные пути
-        paths.extend([
-            "ffmpeg",                    # В PATH
-            "/opt/homebrew/bin/ffmpeg",  # Homebrew на macOS ARM
-            "/usr/local/bin/ffmpeg",     # Homebrew на macOS Intel
-            "/usr/bin/ffmpeg",           # System Linux
-        ])
-        
+        paths.extend(
+            [
+                "ffmpeg",  # В PATH
+                "/opt/homebrew/bin/ffmpeg",  # Homebrew на macOS ARM
+                "/usr/local/bin/ffmpeg",  # Homebrew на macOS Intel
+                "/usr/bin/ffmpeg",  # System Linux
+            ]
+        )
+
         return paths
 
     def _check_ffmpeg_available(self) -> bool:
         """Проверить доступность ffmpeg."""
         ffmpeg_paths = self._get_ffmpeg_paths()
-        
+
         for path in ffmpeg_paths:
             try:
                 result = subprocess.run(
-                    [path, "-version"], 
-                    capture_output=True, 
-                    text=True, 
-                    timeout=5
+                    [path, "-version"], capture_output=True, text=True, timeout=5
                 )
                 if result.returncode == 0:
                     return True

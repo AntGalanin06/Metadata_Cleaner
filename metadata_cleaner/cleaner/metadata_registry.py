@@ -9,19 +9,19 @@ from typing import Any
 
 class MetadataCategory(Enum):
     """Категории метаданных."""
-    
-    AUTHOR = "author"          # Авторские данные
-    DATETIME = "datetime"      # Временные данные
-    LOCATION = "location"      # Геолокация
-    CAMERA = "camera"          # Данные камеры/устройства
-    TECHNICAL = "technical"    # Техническая информация
-    CONTENT = "content"        # Контентные метаданные
+
+    AUTHOR = "author"  # Авторские данные
+    DATETIME = "datetime"  # Временные данные
+    LOCATION = "location"  # Геолокация
+    CAMERA = "camera"  # Данные камеры/устройства
+    TECHNICAL = "technical"  # Техническая информация
+    CONTENT = "content"  # Контентные метаданные
 
 
 @dataclass
 class MetadataField:
     """Описание поля метаданных."""
-    
+
     # Уникальный ключ для настроек
     key: str
     # Категория метаданных
@@ -39,7 +39,7 @@ class MetadataField:
 
 class MetadataRegistry:
     """Регистр метаданных для всех типов файлов."""
-    
+
     # Метаданные для изображений
     IMAGE_FIELDS = [
         # Авторские данные
@@ -48,7 +48,14 @@ class MetadataRegistry:
             category=MetadataCategory.AUTHOR,
             name_key="exif_author",
             description_key="exif_author_desc",
-            result_fields=["artist", "author", "camera_owner", "png_author", "png_Author", "gif_author"],
+            result_fields=[
+                "artist",
+                "author",
+                "camera_owner",
+                "png_author",
+                "png_Author",
+                "gif_author",
+            ],
             default_remove=True,
             priority=10,
         ),
@@ -57,7 +64,12 @@ class MetadataRegistry:
             category=MetadataCategory.AUTHOR,
             name_key="exif_copyright",
             description_key="exif_copyright_desc",
-            result_fields=["copyright", "png_Copyright", "png_copyright", "heic_copyright"],
+            result_fields=[
+                "copyright",
+                "png_Copyright",
+                "png_copyright",
+                "heic_copyright",
+            ],
             default_remove=False,
             priority=11,
         ),
@@ -67,7 +79,12 @@ class MetadataRegistry:
             category=MetadataCategory.DATETIME,
             name_key="exif_datetime",
             description_key="exif_datetime_desc",
-            result_fields=["date_original", "date_digitized", "png_Creation Time", "heic_creation_time"],
+            result_fields=[
+                "date_original",
+                "date_digitized",
+                "png_Creation Time",
+                "heic_creation_time",
+            ],
             default_remove=True,
             priority=20,
         ),
@@ -200,7 +217,7 @@ class MetadataRegistry:
             priority=63,
         ),
     ]
-    
+
     # Метаданные для документов (DOCX, PPTX)
     DOCUMENT_FIELDS = [
         # Авторские данные
@@ -352,7 +369,7 @@ class MetadataRegistry:
             priority=53,
         ),
     ]
-    
+
     # Метаданные для PDF
     PDF_FIELDS = [
         # Авторские данные
@@ -431,7 +448,7 @@ class MetadataRegistry:
             priority=52,
         ),
     ]
-    
+
     # Метаданные для видео
     VIDEO_FIELDS = [
         # Авторские данные
@@ -551,13 +568,13 @@ class MetadataRegistry:
             "video": cls.VIDEO_FIELDS,
         }
         return mapping.get(file_type, [])
-    
+
     @classmethod
     def get_default_settings_for_file_type(cls, file_type: str) -> dict[str, bool]:
         """Получить настройки по умолчанию для типа файла."""
         fields = cls.get_fields_for_file_type(file_type)
         return {field.key: field.default_remove for field in fields}
-    
+
     @classmethod
     def get_field_by_key(cls, file_type: str, key: str) -> MetadataField | None:
         """Найти поле метаданных по ключу."""
@@ -566,29 +583,31 @@ class MetadataRegistry:
             if field.key == key:
                 return field
         return None
-    
+
     @classmethod
-    def map_result_fields_to_metadata(cls, file_type: str, result_fields: dict[str, Any]) -> dict[str, list[str]]:
+    def map_result_fields_to_metadata(
+        cls, file_type: str, result_fields: dict[str, Any]
+    ) -> dict[str, list[str]]:
         """Сопоставить поля результата с метаданными настроек."""
         mapping = {}
         fields = cls.get_fields_for_file_type(file_type)
-        
+
         for field in fields:
             found_fields = []
             for result_field in field.result_fields:
                 if result_field in result_fields:
                     found_fields.append(result_field)
-            
+
             if found_fields:
                 mapping[field.key] = found_fields
-        
+
         return mapping
-    
+
     @classmethod
     def get_supported_file_types(cls) -> list[str]:
         """Получить список поддерживаемых типов файлов."""
         return ["image", "document", "pdf", "video"]
-    
+
     @classmethod
     def get_all_result_fields_for_file_type(cls, file_type: str) -> set[str]:
         """Получить все возможные поля результата для типа файла."""

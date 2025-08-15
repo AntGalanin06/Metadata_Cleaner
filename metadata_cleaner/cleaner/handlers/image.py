@@ -13,6 +13,7 @@ from . import BaseHandler
 # Инициализация поддержки HEIF/HEIC форматов
 try:
     import pillow_heif
+
     pillow_heif.register_heif_opener()
     HEIF_AVAILABLE = True
 except ImportError:
@@ -72,7 +73,9 @@ class ImageHandler(BaseHandler):
 
         try:
             # Проверяем, нужно ли вообще что-то чистить
-            any_cleaning_enabled = any(value for value in job.clean_fields.values() if isinstance(value, bool))
+            any_cleaning_enabled = any(
+                value for value in job.clean_fields.values() if isinstance(value, bool)
+            )
             if not any_cleaning_enabled:
                 # Если все настройки отключены, ничего не делаем
                 return cleaned_fields
@@ -82,14 +85,16 @@ class ImageHandler(BaseHandler):
 
             # Сохранение удаляемых данных
             # Проверяем есть ли хотя бы одна настройка камеры включена
-            camera_fields_enabled = any([
-                job.clean_fields.get("exif_camera", False),
-                job.clean_fields.get("exif_author", False), 
-                job.clean_fields.get("exif_software", False),
-                job.clean_fields.get("camera_owner", False),
-                job.clean_fields.get("camera_serial", False),
-                job.clean_fields.get("camera", False)  # для обратной совместимости
-            ])
+            camera_fields_enabled = any(
+                [
+                    job.clean_fields.get("exif_camera", False),
+                    job.clean_fields.get("exif_author", False),
+                    job.clean_fields.get("exif_software", False),
+                    job.clean_fields.get("camera_owner", False),
+                    job.clean_fields.get("camera_serial", False),
+                    job.clean_fields.get("camera", False),  # для обратной совместимости
+                ]
+            )
             if camera_fields_enabled:
                 # Информация о камере
                 if "0th" in exif_dict:
@@ -119,19 +124,23 @@ class ImageHandler(BaseHandler):
                             )
                         else:
                             cleaned_fields["software"] = str(software_value)
-                    
+
                     # Дополнительные персональные данные
                     if piexif.ImageIFD.Artist in ifd:
                         artist_value = ifd[piexif.ImageIFD.Artist]
                         if isinstance(artist_value, bytes):
-                            cleaned_fields["artist"] = artist_value.decode("utf-8", errors="ignore")
+                            cleaned_fields["artist"] = artist_value.decode(
+                                "utf-8", errors="ignore"
+                            )
                         else:
                             cleaned_fields["artist"] = str(artist_value)
-                    
+
                     if piexif.ImageIFD.Copyright in ifd:
                         copyright_value = ifd[piexif.ImageIFD.Copyright]
                         if isinstance(copyright_value, bytes):
-                            cleaned_fields["copyright"] = copyright_value.decode("utf-8", errors="ignore")
+                            cleaned_fields["copyright"] = copyright_value.decode(
+                                "utf-8", errors="ignore"
+                            )
                         else:
                             cleaned_fields["copyright"] = str(copyright_value)
 
@@ -141,49 +150,63 @@ class ImageHandler(BaseHandler):
                     if piexif.ExifIFD.CameraOwnerName in exif_ifd:
                         owner_value = exif_ifd[piexif.ExifIFD.CameraOwnerName]
                         if isinstance(owner_value, bytes):
-                            cleaned_fields["camera_owner"] = owner_value.decode("utf-8", errors="ignore")
+                            cleaned_fields["camera_owner"] = owner_value.decode(
+                                "utf-8", errors="ignore"
+                            )
                         else:
                             cleaned_fields["camera_owner"] = str(owner_value)
-                    
+
                     if piexif.ExifIFD.BodySerialNumber in exif_ifd:
                         body_serial = exif_ifd[piexif.ExifIFD.BodySerialNumber]
                         if isinstance(body_serial, bytes):
-                            cleaned_fields["body_serial"] = body_serial.decode("utf-8", errors="ignore")
+                            cleaned_fields["body_serial"] = body_serial.decode(
+                                "utf-8", errors="ignore"
+                            )
                         else:
                             cleaned_fields["body_serial"] = str(body_serial)
-                    
+
                     if piexif.ExifIFD.LensSerialNumber in exif_ifd:
                         lens_serial = exif_ifd[piexif.ExifIFD.LensSerialNumber]
                         if isinstance(lens_serial, bytes):
-                            cleaned_fields["lens_serial"] = lens_serial.decode("utf-8", errors="ignore")
+                            cleaned_fields["lens_serial"] = lens_serial.decode(
+                                "utf-8", errors="ignore"
+                            )
                         else:
                             cleaned_fields["lens_serial"] = str(lens_serial)
-                    
+
                     if piexif.ExifIFD.UserComment in exif_ifd:
                         user_comment = exif_ifd[piexif.ExifIFD.UserComment]
                         if isinstance(user_comment, bytes) and len(user_comment) > 8:
                             # UserComment начинается с 8-байтного заголовка кодировки
                             try:
-                                cleaned_fields["user_comment"] = user_comment[8:].decode("utf-8", errors="ignore")
+                                cleaned_fields["user_comment"] = user_comment[
+                                    8:
+                                ].decode("utf-8", errors="ignore")
                             except:
                                 cleaned_fields["user_comment"] = str(user_comment)
 
             # Проверяем есть ли хотя бы одна настройка GPS включена
-            gps_fields_enabled = any([
-                job.clean_fields.get("gps_coords", False),
-                job.clean_fields.get("gps_altitude", False),
-                job.clean_fields.get("gps", False)  # для обратной совместимости
-            ])
+            gps_fields_enabled = any(
+                [
+                    job.clean_fields.get("gps_coords", False),
+                    job.clean_fields.get("gps_altitude", False),
+                    job.clean_fields.get("gps", False),  # для обратной совместимости
+                ]
+            )
             if gps_fields_enabled:
                 # GPS данные
                 if "GPS" in exif_dict and exif_dict["GPS"]:
                     cleaned_fields["gps_data"] = str(exif_dict["GPS"])
 
             # Проверяем есть ли хотя бы одна настройка даты включена
-            date_fields_enabled = any([
-                job.clean_fields.get("exif_datetime", False),
-                job.clean_fields.get("created", False)  # для обратной совместимости
-            ])
+            date_fields_enabled = any(
+                [
+                    job.clean_fields.get("exif_datetime", False),
+                    job.clean_fields.get(
+                        "created", False
+                    ),  # для обратной совместимости
+                ]
+            )
             if date_fields_enabled:
                 # Даты создания
                 if "Exif" in exif_dict:
@@ -307,7 +330,7 @@ class ImageHandler(BaseHandler):
     def _clean_heic_metadata(self, job: FileJob) -> dict[str, Any]:
         """Очистить метаданные из HEIC файла."""
         cleaned_fields = {}
-        
+
         if not HEIF_AVAILABLE:
             msg = "Для работы с HEIC требуется pillow-heif. Установите зависимость."
             raise MetadataProcessingError(msg)
@@ -319,19 +342,19 @@ class ImageHandler(BaseHandler):
             # Сохраняем удаляемые метаданные
             if hasattr(img, "info") and img.info:
                 for key, value in img.info.items():
-                    if key not in ['icc_profile']:  # Сохраняем ICC профиль
+                    if key not in ["icc_profile"]:  # Сохраняем ICC профиль
                         cleaned_fields[f"heic_{key}"] = str(value)
 
             # Создаём новое изображение без метаданных
             new_img = Image.new(img.mode, img.size)
             new_img.putdata(list(img.getdata()))
-            
+
             # Сохраняем ICC профиль если он есть
-            if hasattr(img, "info") and 'icc_profile' in img.info:
-                new_img.info['icc_profile'] = img.info['icc_profile']
+            if hasattr(img, "info") and "icc_profile" in img.info:
+                new_img.info["icc_profile"] = img.info["icc_profile"]
 
             output_path = job.output_path or job.file_path
-            
+
             # Пытаемся сохранить как HEIC
             try:
                 new_img.save(str(output_path), format="HEIF", quality=95)
@@ -342,15 +365,17 @@ class ImageHandler(BaseHandler):
                     new_img.save(str(output_path), format="AVIF", quality=95)
                 except (ValueError, OSError):
                     # В крайнем случае сохраняем как высококачественный JPEG
-                    if str(output_path).lower().endswith('.heic'):
-                        output_path = output_path.with_suffix('.jpg')
-                    new_img.save(str(output_path), format="JPEG", quality=98, optimize=True)
+                    if str(output_path).lower().endswith(".heic"):
+                        output_path = output_path.with_suffix(".jpg")
+                    new_img.save(
+                        str(output_path), format="JPEG", quality=98, optimize=True
+                    )
                     cleaned_fields["format_changed"] = "HEIC → JPEG (высокое качество)"
 
         except Exception as e:
             msg = f"Ошибка обработки HEIC: {e!s}"
             raise MetadataProcessingError(msg)
-            
+
         return cleaned_fields
 
     def _clean_gif_metadata(self, job: FileJob) -> dict[str, Any]:

@@ -37,16 +37,17 @@ class TestDispatcherAdvanced(unittest.TestCase):
     def tearDown(self):
         """Очистка после каждого теста."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_process_file_with_settings_file_not_exists(self):
         """Тест обработки несуществующего файла."""
         nonexistent_path = self.temp_dir / "nonexistent_file.jpg"
-        
+
         result = self.dispatcher.process_file_with_settings(
             nonexistent_path, FileType.IMAGE
         )
-        
+
         self.assertEqual(result.status, CleanStatus.ERROR)
         self.assertIn("файл не найден", result.message.lower())
 
@@ -54,11 +55,11 @@ class TestDispatcherAdvanced(unittest.TestCase):
         """Тест обработки директории вместо файла."""
         with tempfile.TemporaryDirectory() as temp_dir:
             dir_path = Path(temp_dir)
-            
+
             result = self.dispatcher.process_file_with_settings(
                 dir_path, FileType.IMAGE
             )
-            
+
             self.assertEqual(result.status, CleanStatus.ERROR)
             self.assertIn("не является файлом", result.message.lower())
 
@@ -67,49 +68,54 @@ class TestDispatcherAdvanced(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix=".unknown", delete=False) as tmp_file:
             tmp_path = Path(tmp_file.name)
             tmp_file.write(b"test content")
-        
+
         try:
             # Создаем фейковый FileType который не существует в handlers
             fake_file_type = FileType.IMAGE  # используем валидный FileType
             # но удаляем handler из dispatcher
             del self.dispatcher.handlers[FileType.IMAGE]
-            
+
             result = self.dispatcher.process_file_with_settings(
                 tmp_path, fake_file_type
             )
-            
+
             self.assertEqual(result.status, CleanStatus.ERROR)
             self.assertIn("неподдерживаемый тип файла", result.message.lower())
         finally:
             tmp_path.unlink(missing_ok=True)
             # Восстанавливаем handler
             from metadata_cleaner.cleaner.handlers.image import ImageHandler
+
             self.dispatcher.handlers[FileType.IMAGE] = ImageHandler()
 
     def test_process_file_with_settings_processing_time(self):
         """Тест отслеживания времени обработки."""
         test_file = self.temp_dir / "test.jpg"
         test_file.write_bytes(b"fake jpg content")
-        
+
         # Создаем мок-обработчик с небольшой задержкой
         mock_handler = mock.Mock()
+
         def slow_clean(job):
             time.sleep(0.01)  # Небольшая задержка для измеримого времени
             return CleanResult(
                 job=job,
                 status=CleanStatus.SUCCESS,
-                processing_time=0.0  # будет обновлено диспетчером
+                processing_time=0.0,  # будет обновлено диспетчером
             )
+
         mock_handler.clean.side_effect = slow_clean
         self.dispatcher.handlers[FileType.IMAGE] = mock_handler
-        
+
         start_time = time.time()
         result = self.dispatcher.process_file_with_settings(test_file, FileType.IMAGE)
         end_time = time.time()
-        
+
         # Проверяем что время обработки обновилось
         self.assertGreater(result.processing_time, 0)
-        self.assertLessEqual(result.processing_time, end_time - start_time + 0.1)  # небольшая погрешность
+        self.assertLessEqual(
+            result.processing_time, end_time - start_time + 0.1
+        )  # небольшая погрешность
 
     def test_get_file_info_comprehensive(self):
         """Всесторонний тест получения информации о файле."""
@@ -117,9 +123,9 @@ class TestDispatcherAdvanced(unittest.TestCase):
         test_file = self.temp_dir / "test_document.pdf"
         test_content = b"PDF test content"
         test_file.write_bytes(test_content)
-        
+
         info = self.dispatcher.get_file_info(test_file)
-        
+
         # Проверяем все поля
         self.assertEqual(info["name"], "test_document.pdf")
         self.assertEqual(info["extension"], ".pdf")
@@ -132,10 +138,10 @@ class TestDispatcherAdvanced(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp_file:
             tmp_path = tmp_file.name
             tmp_file.write(b"fake image")
-        
+
         try:
             info = self.dispatcher.get_file_info(tmp_path)
-            
+
             self.assertTrue(info["name"].endswith(".jpg"))
             self.assertEqual(info["extension"], ".jpg")
             self.assertEqual(info["supported"], "True")
@@ -145,9 +151,9 @@ class TestDispatcherAdvanced(unittest.TestCase):
     def test_get_file_info_nonexistent_file(self):
         """Тест get_file_info для несуществующего файла."""
         nonexistent_path = self.temp_dir / "nonexistent.jpg"
-        
+
         info = self.dispatcher.get_file_info(nonexistent_path)
-        
+
         self.assertEqual(info["name"], "nonexistent.jpg")
         self.assertEqual(info["extension"], ".jpg")
         self.assertEqual(info["size"], "0")
@@ -158,10 +164,10 @@ class TestDispatcherAdvanced(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix=".unknown", delete=False) as tmp_file:
             tmp_path = Path(tmp_file.name)
             tmp_file.write(b"unknown content")
-        
+
         try:
             info = self.dispatcher.get_file_info(tmp_path)
-            
+
             self.assertEqual(info["mime_type"], "unknown")
             self.assertEqual(info["supported"], "False")
         finally:
@@ -172,7 +178,7 @@ class TestDispatcherAdvanced(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp_file:
             tmp_path = Path(tmp_file.name)
             tmp_file.write(b"fake jpeg content")
-        
+
         try:
             options = CleaningOptions(
                 clean_author=True,
@@ -186,9 +192,9 @@ class TestDispatcherAdvanced(unittest.TestCase):
                 clean_camera_info=True,
                 create_backup=True,
             )
-            
+
             result = self.dispatcher.process_file_with_options(tmp_path, options)
-            
+
             self.assertIsInstance(result, CleanResult)
         finally:
             tmp_path.unlink(missing_ok=True)
@@ -207,9 +213,9 @@ class TestDispatcherAdvanced(unittest.TestCase):
             clean_camera_info=True,
             create_backup=False,
         )
-        
+
         clean_fields = self.dispatcher._options_to_clean_fields(options)
-        
+
         self.assertEqual(clean_fields["author"], True)
         self.assertEqual(clean_fields["creator"], True)  # также мапится на author
         self.assertEqual(clean_fields["title"], False)
@@ -226,17 +232,20 @@ class TestDispatcherAdvanced(unittest.TestCase):
         """Тест обработки в режиме резервного копирования и перезаписи."""
         test_file = self.temp_dir / "test.jpg"
         test_file.write_bytes(b"fake jpg content")
-        
-        self.mock_settings.get_output_mode.return_value = OutputMode.BACKUP_AND_OVERWRITE
-        
-        with mock.patch.object(self.dispatcher.handlers[FileType.IMAGE], 'clean') as mock_clean:
+
+        self.mock_settings.get_output_mode.return_value = (
+            OutputMode.BACKUP_AND_OVERWRITE
+        )
+
+        with mock.patch.object(
+            self.dispatcher.handlers[FileType.IMAGE], "clean"
+        ) as mock_clean:
             mock_clean.return_value = CleanResult(
-                job=FileJob(file_path=test_file),
-                status=CleanStatus.SUCCESS
+                job=FileJob(file_path=test_file), status=CleanStatus.SUCCESS
             )
-            
+
             result = self.dispatcher.process_file(test_file)
-            
+
             # Проверяем что был создан FileJob с backup_enabled=True
             call_args = mock_clean.call_args[0][0]  # первый аргумент первого вызова
             self.assertTrue(call_args.backup_enabled)
@@ -246,17 +255,18 @@ class TestDispatcherAdvanced(unittest.TestCase):
         """Тест обработки в режиме замены."""
         test_file = self.temp_dir / "test.pdf"
         test_file.write_bytes(b"fake pdf content")
-        
+
         self.mock_settings.get_output_mode.return_value = OutputMode.REPLACE
-        
-        with mock.patch.object(self.dispatcher.handlers[FileType.PDF], 'clean') as mock_clean:
+
+        with mock.patch.object(
+            self.dispatcher.handlers[FileType.PDF], "clean"
+        ) as mock_clean:
             mock_clean.return_value = CleanResult(
-                job=FileJob(file_path=test_file),
-                status=CleanStatus.SUCCESS
+                job=FileJob(file_path=test_file), status=CleanStatus.SUCCESS
             )
-            
+
             result = self.dispatcher.process_file(test_file)
-            
+
             # Проверяем что был создан FileJob с правильными настройками
             call_args = mock_clean.call_args[0][0]
             self.assertFalse(call_args.backup_enabled)
@@ -266,12 +276,12 @@ class TestDispatcherAdvanced(unittest.TestCase):
         """Тест обработки когда нет доступного обработчика."""
         test_file = self.temp_dir / "test.jpg"
         test_file.write_bytes(b"fake jpg content")
-        
+
         # Удаляем обработчик для IMAGE
         del self.dispatcher.handlers[FileType.IMAGE]
-        
+
         result = self.dispatcher.process_file(test_file)
-        
+
         self.assertEqual(result.status, CleanStatus.ERROR)
         self.assertIn("No handler for file type", result.message)
 
@@ -291,7 +301,7 @@ class TestDispatcherAdvanced(unittest.TestCase):
             ("test.mp4", "VideoHandler"),
             ("test.mov", "VideoHandler"),
         ]
-        
+
         for filename, expected_handler in test_cases:
             with self.subTest(filename=filename):
                 file_path = Path(filename)
@@ -302,7 +312,7 @@ class TestDispatcherAdvanced(unittest.TestCase):
     def test_get_handler_for_file_unsupported(self):
         """Тест получения обработчика для неподдерживаемого файла."""
         unsupported_files = ["test.txt", "test.exe", "test.unknown", "test"]
-        
+
         for filename in unsupported_files:
             with self.subTest(filename=filename):
                 file_path = Path(filename)
@@ -312,21 +322,36 @@ class TestDispatcherAdvanced(unittest.TestCase):
     def test_is_supported_comprehensive(self):
         """Всесторонний тест проверки поддержки файлов."""
         supported_files = [
-            "test.jpg", "test.JPEG", "test.PNG", "test.gif",
-            "test.heic", "test.HEIF", "test.docx", "test.XLSX",
-            "test.pptx", "test.PDF", "test.mp4", "test.MOV"
+            "test.jpg",
+            "test.JPEG",
+            "test.PNG",
+            "test.gif",
+            "test.heic",
+            "test.HEIF",
+            "test.docx",
+            "test.XLSX",
+            "test.pptx",
+            "test.PDF",
+            "test.mp4",
+            "test.MOV",
         ]
-        
+
         unsupported_files = [
-            "test.txt", "test.exe", "test.bat", "test.py",
-            "test.js", "test.html", "test.css", "test"
+            "test.txt",
+            "test.exe",
+            "test.bat",
+            "test.py",
+            "test.js",
+            "test.html",
+            "test.css",
+            "test",
         ]
-        
+
         for filename in supported_files:
             with self.subTest(filename=filename, supported=True):
                 self.assertTrue(self.dispatcher.is_supported(filename))
                 self.assertTrue(self.dispatcher.is_supported(Path(filename)))
-        
+
         for filename in unsupported_files:
             with self.subTest(filename=filename, supported=False):
                 self.assertFalse(self.dispatcher.is_supported(filename))
@@ -335,18 +360,26 @@ class TestDispatcherAdvanced(unittest.TestCase):
     def test_get_supported_extensions_complete(self):
         """Тест получения полного списка поддерживаемых расширений."""
         extensions = self.dispatcher.get_supported_extensions()
-        
+
         expected_extensions = {
             # Images
-            ".jpg", ".jpeg", ".png", ".gif", ".heic", ".heif",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".gif",
+            ".heic",
+            ".heif",
             # Documents
-            ".docx", ".xlsx", ".pptx",
+            ".docx",
+            ".xlsx",
+            ".pptx",
             # PDF
             ".pdf",
             # Video
-            ".mp4", ".mov"
+            ".mp4",
+            ".mov",
         }
-        
+
         self.assertEqual(extensions, expected_extensions)
         self.assertEqual(len(extensions), 12)  # проверяем что всё добавлено
 
@@ -363,7 +396,7 @@ class TestDispatcherAdvanced(unittest.TestCase):
             ("test.MP4", FileType.VIDEO),
             ("test.MOV", FileType.VIDEO),
         ]
-        
+
         for filename, expected_type in test_cases:
             with self.subTest(filename=filename):
                 file_path = Path(filename)
@@ -372,4 +405,4 @@ class TestDispatcherAdvanced(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main() 
+    unittest.main()

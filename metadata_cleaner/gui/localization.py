@@ -155,7 +155,6 @@ LOCALIZATION = {
         "pick_folder_dialog_title": "Выберите папку для сканирования файлов",
         "switch_theme": "Переключить тему",
         "remove_from_list": "Удалить из списка",
-        
         # Detailed results dialog
         "no_results_yet": "Результаты обработки появятся здесь",
         "total_files": "Всего файлов",
@@ -166,7 +165,6 @@ LOCALIZATION = {
         "file_had_no_metadata": "Файл не содержал метаданных для очистки",
         "processing_failed": "Ошибка обработки",
         "processing_time": "Время: {time}",
-        
         # Metadata settings translations
         "exif_author": "Автор фотографии",
         "exif_author_desc": "Информация о фотографе в EXIF",
@@ -256,10 +254,9 @@ LOCALIZATION = {
         "comment_desc": "Краткое описание (сохраняется)",
         "description": "Описание",
         "description_desc": "Подробное описание (сохраняется)",
-        
         # Categories for metadata groups
         "category_author": "Авторские данные",
-        "category_datetime": "Временные данные", 
+        "category_datetime": "Временные данные",
         "category_location": "Геолокация",
         "category_camera": "Данные камеры/устройства",
         "category_technical": "Техническая информация",
@@ -421,7 +418,6 @@ LOCALIZATION = {
         "pick_folder_dialog_title": "Select folder to scan for files",
         "switch_theme": "Switch theme",
         "remove_from_list": "Remove from list",
-        
         # Detailed results dialog
         "no_results_yet": "Processing results will appear here",
         "total_files": "Total Files",
@@ -432,7 +428,6 @@ LOCALIZATION = {
         "file_had_no_metadata": "File contained no metadata to clean",
         "processing_failed": "Processing failed",
         "processing_time": "Time: {time}",
-        
         # Metadata settings translations
         "exif_author": "Photo Author",
         "exif_author_desc": "Photographer information in EXIF",
@@ -522,10 +517,9 @@ LOCALIZATION = {
         "comment_desc": "Brief description (preserved)",
         "description": "Description",
         "description_desc": "Detailed description (preserved)",
-        
         # Categories for metadata groups
         "category_author": "Author Data",
-        "category_datetime": "Date & Time Data", 
+        "category_datetime": "Date & Time Data",
         "category_location": "Location Data",
         "category_camera": "Camera/Device Data",
         "category_technical": "Technical Information",

@@ -142,7 +142,11 @@ class DetailedResultsDialog(ft.UserControl):
                                 str(failed_files),
                                 size=24,
                                 weight=ft.FontWeight.BOLD,
-                                color=ft.colors.RED if failed_files > 0 else ft.colors.ON_SURFACE_VARIANT,
+                                color=(
+                                    ft.colors.RED
+                                    if failed_files > 0
+                                    else ft.colors.ON_SURFACE_VARIANT
+                                ),
                             ),
                             ft.Text(
                                 translator.get("failed"),
@@ -185,28 +189,36 @@ class DetailedResultsDialog(ft.UserControl):
                 color=ft.colors.GREEN,
                 size=24,
             )
-            
+
             # Информация об очищенных метаданных
             cleaned_count = len(result.cleaned_fields or {})
             if cleaned_count > 0:
-                status_text = translator.get("metadata_cleaned_count", count=cleaned_count)
+                status_text = translator.get(
+                    "metadata_cleaned_count", count=cleaned_count
+                )
                 metadata_chips = []
-                
+
                 if result.cleaned_fields:
                     # Определяем тип файла для правильного маппинга
                     file_type = self._get_file_type_from_path(result.job.file_path)
-                    
+
                     # Получаем маппинг полей результата на настройки метаданных
-                    field_mapping = MetadataRegistry.map_result_fields_to_metadata(file_type, result.cleaned_fields)
-                    
+                    field_mapping = MetadataRegistry.map_result_fields_to_metadata(
+                        file_type, result.cleaned_fields
+                    )
+
                     # Создаем красивые теги для групп метаданных
                     for metadata_key, result_fields in field_mapping.items():
-                        field_info = MetadataRegistry.get_field_by_key(file_type, metadata_key)
+                        field_info = MetadataRegistry.get_field_by_key(
+                            file_type, metadata_key
+                        )
                         if field_info:
                             # Используем человекочитаемое название из переводчика
                             display_name = translator.get(field_info.name_key)
-                            category_color, category_icon = self._get_category_style(field_info.category)
-                            
+                            category_color, category_icon = self._get_category_style(
+                                field_info.category
+                            )
+
                             metadata_chips.append(
                                 ft.Container(
                                     content=ft.Row(
@@ -226,19 +238,23 @@ class DetailedResultsDialog(ft.UserControl):
                                         spacing=4,
                                         tight=True,
                                     ),
-                                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                    padding=ft.padding.symmetric(
+                                        horizontal=8, vertical=4
+                                    ),
                                     bgcolor=f"{category_color}0F",  # 6% opacity
-                                    border=ft.border.all(1, f"{category_color}3D"),  # 24% opacity
+                                    border=ft.border.all(
+                                        1, f"{category_color}3D"
+                                    ),  # 24% opacity
                                     border_radius=16,
                                     tooltip=translator.get(field_info.description_key),
                                 )
                             )
-                    
+
                     # Добавляем необработанные поля если они есть
                     processed_fields = set()
                     for fields in field_mapping.values():
                         processed_fields.update(fields)
-                    
+
                     for field in result.cleaned_fields.keys():
                         if field not in processed_fields:
                             metadata_chips.append(
@@ -260,14 +276,18 @@ class DetailedResultsDialog(ft.UserControl):
                                         spacing=4,
                                         tight=True,
                                     ),
-                                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                    padding=ft.padding.symmetric(
+                                        horizontal=8, vertical=4
+                                    ),
                                     bgcolor=f"{ft.colors.BLUE_700}0F",  # 6% opacity
-                                    border=ft.border.all(1, f"{ft.colors.BLUE_700}3D"),  # 24% opacity
+                                    border=ft.border.all(
+                                        1, f"{ft.colors.BLUE_700}3D"
+                                    ),  # 24% opacity
                                     border_radius=16,
                                     tooltip=f"Очищено поле: {self._format_field_name(field)} ({field})",
                                 )
                             )
-                
+
                 # Создаем секцию для отображения всех очищенных метаданных
                 metadata_section = ft.Column(
                     [
@@ -350,7 +370,7 @@ class DetailedResultsDialog(ft.UserControl):
             )
 
         # Информация о времени обработки
-        processing_time = getattr(result, 'processing_time', 0.0)
+        processing_time = getattr(result, "processing_time", 0.0)
         time_text = ft.Text(
             translator.get("processing_time", time=f"{processing_time:.2f}s"),
             size=10,
@@ -425,24 +445,33 @@ class DetailedResultsDialog(ft.UserControl):
     def _get_file_type_from_path(self, file_path) -> str:
         """Определить тип файла по расширению."""
         extension = file_path.suffix.lower()
-        
-        if extension in ['.jpg', '.jpeg', '.png', '.gif', '.heic', '.heif', '.tiff', '.tif']:
-            return 'image'
-        elif extension in ['.docx', '.pptx']:
-            return 'document'
-        elif extension == '.pdf':
-            return 'pdf'
-        elif extension in ['.mp4', '.mov', '.avi', '.mkv']:
-            return 'video'
-        elif extension in ['.xlsx', '.xls']:
-            return 'document'  # Используем те же настройки что и для документов
+
+        if extension in [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".gif",
+            ".heic",
+            ".heif",
+            ".tiff",
+            ".tif",
+        ]:
+            return "image"
+        elif extension in [".docx", ".pptx"]:
+            return "document"
+        elif extension == ".pdf":
+            return "pdf"
+        elif extension in [".mp4", ".mov", ".avi", ".mkv"]:
+            return "video"
+        elif extension in [".xlsx", ".xls"]:
+            return "document"  # Используем те же настройки что и для документов
         else:
-            return 'unknown'
+            return "unknown"
 
     def _get_category_style(self, category) -> tuple[str, str]:
         """Получить цвет и иконку для категории метаданных."""
         from metadata_cleaner.cleaner.metadata_registry import MetadataCategory
-        
+
         category_styles = {
             MetadataCategory.AUTHOR: (ft.colors.PURPLE_700, ft.icons.PERSON),
             MetadataCategory.DATETIME: (ft.colors.ORANGE_700, ft.icons.ACCESS_TIME),
@@ -451,7 +480,7 @@ class DetailedResultsDialog(ft.UserControl):
             MetadataCategory.TECHNICAL: (ft.colors.INDIGO_700, ft.icons.SETTINGS),
             MetadataCategory.CONTENT: (ft.colors.TEAL_700, ft.icons.DESCRIPTION),
         }
-        
+
         return category_styles.get(category, (ft.colors.BLUE_GREY_700, ft.icons.LABEL))
 
     def _format_field_name(self, field_name: str) -> str:
@@ -460,31 +489,27 @@ class DetailedResultsDialog(ft.UserControl):
         field_translations = {
             # Общие поля
             "artist": "Автор",
-            "author": "Автор", 
+            "author": "Автор",
             "author_info": "Информация об авторе",
             "camera_owner": "Владелец камеры",
             "creator": "Создатель",
             "copyright": "Авторские права",
-            
             # Временные метки
             "date_original": "Дата съемки",
-            "date_digitized": "Дата оцифровки", 
+            "date_digitized": "Дата оцифровки",
             "created": "Дата создания",
             "modified": "Дата изменения",
             "last_printed": "Дата печати",
             "creation_info": "Информация о создании",
-            
             # Устройство и камера
             "camera_make": "Производитель камеры",
             "camera_model": "Модель камеры",
             "software": "ПО",
             "body_serial": "Серийный номер корпуса",
             "lens_serial": "Серийный номер объектива",
-            
             # Геолокация
             "gps_data": "GPS данные",
             "gps_info": "Информация GPS",
-            
             # Комментарии и описания
             "user_comment": "Комментарий пользователя",
             "comments": "Комментарии",
@@ -493,7 +518,6 @@ class DetailedResultsDialog(ft.UserControl):
             "title_info": "Информация заголовка",
             "subject": "Тема",
             "keywords": "Ключевые слова",
-            
             # Документы
             "last_modified_by": "Последний редактор",
             "last_modified_by_alt": "Редактор (альт.)",
@@ -504,19 +528,16 @@ class DetailedResultsDialog(ft.UserControl):
             "category": "Категория",
             "language": "Язык",
             "identifier": "Идентификатор",
-            
             # PDF
             "producer": "Производитель PDF",
-            
             # Видео
             "method": "Метод кодирования",
-            
             # Специфичные для форматов
             "gif_version": "Версия GIF",
             "png_title": "Заголовок PNG",
             "png_author": "Автор PNG",
         }
-        
+
         # Возвращаем переведенное название или форматированное техническое
         if field_name in field_translations:
             return field_translations[field_name]

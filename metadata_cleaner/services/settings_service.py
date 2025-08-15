@@ -44,7 +44,9 @@ class SettingsService:
         """Получить настройки метаданных по умолчанию из регистра."""
         settings = {}
         for file_type in MetadataRegistry.get_supported_file_types():
-            settings[file_type] = MetadataRegistry.get_default_settings_for_file_type(file_type)
+            settings[file_type] = MetadataRegistry.get_default_settings_for_file_type(
+                file_type
+            )
         return settings
 
     def _load_default_settings(self) -> dict[str, Any]:
@@ -231,7 +233,13 @@ class SettingsService:
     def update_settings(self, new_settings: dict[str, Any]):
         """Массовое обновление настроек"""
         # Обновляем простые значения напрямую
-        for key in ["theme", "language", "output_mode", "show_notifications", "auto_close_after_completion"]:
+        for key in [
+            "theme",
+            "language",
+            "output_mode",
+            "show_notifications",
+            "auto_close_after_completion",
+        ]:
             if key in new_settings:
                 self._settings[key] = new_settings[key]
 
@@ -290,6 +298,8 @@ class SettingsService:
         """Получить информацию о поле метаданных."""
         return MetadataRegistry.get_field_by_key(file_type, field_key)
 
-    def map_result_to_metadata(self, file_type: str, result_fields: dict[str, any]) -> dict[str, list[str]]:
+    def map_result_to_metadata(
+        self, file_type: str, result_fields: dict[str, any]
+    ) -> dict[str, list[str]]:
         """Сопоставить поля результата с настройками метаданных."""
         return MetadataRegistry.map_result_fields_to_metadata(file_type, result_fields)

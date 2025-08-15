@@ -79,7 +79,11 @@ class PDFHandler(BaseHandler):
                 cleaned_fields["modified"] = str(metadata.modification_date)
 
             # Producer - производитель PDF
-            if job.clean_fields.get("producer", True) and hasattr(metadata, "producer") and metadata.producer:
+            if (
+                job.clean_fields.get("producer", True)
+                and hasattr(metadata, "producer")
+                and metadata.producer
+            ):
                 cleaned_fields["producer"] = metadata.producer
 
         # Создание writer с копированием страниц

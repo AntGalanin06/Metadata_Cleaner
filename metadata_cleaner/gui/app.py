@@ -12,7 +12,9 @@ from metadata_cleaner.cleaner.models import (
     FileJob,
 )
 from metadata_cleaner.gui.components.action_bar import ActionBar
-from metadata_cleaner.gui.components.detailed_results_dialog import DetailedResultsDialog
+from metadata_cleaner.gui.components.detailed_results_dialog import (
+    DetailedResultsDialog,
+)
 from metadata_cleaner.gui.components.file_card import FileCard
 from metadata_cleaner.gui.components.progress_card import ProgressCard
 from metadata_cleaner.gui.components.settings_dialog import SettingsDialog
@@ -32,7 +34,7 @@ class MetadataCleanerApp:
 
         self.settings = SettingsService()
         self.dispatcher = MetadataDispatcher(settings_service=self.settings)
-        
+
         # Диалог детальных результатов
         self.detailed_results_dialog = DetailedResultsDialog()
 
@@ -42,20 +44,27 @@ class MetadataCleanerApp:
         self.setup_page()
         self.build_ui()
 
-    def show_notification(self, message: str, color: str = ft.colors.GREEN_800, bgcolor: str = ft.colors.GREEN_100, action: str = None, action_color: str = ft.colors.GREEN):
+    def show_notification(
+        self,
+        message: str,
+        color: str = ft.colors.GREEN_800,
+        bgcolor: str = ft.colors.GREEN_100,
+        action: str = None,
+        action_color: str = ft.colors.GREEN,
+    ):
         """Показать уведомление с учетом настроек"""
         if not self.settings.get_show_notifications():
             return  # Не показываем уведомления если отключены
-        
+
         snack_bar = ft.SnackBar(
             content=ft.Text(message, color=color),
             bgcolor=bgcolor,
         )
-        
+
         if action:
             snack_bar.action = action
             snack_bar.action_color = action_color
-        
+
         self.page.snack_bar = snack_bar
         snack_bar.open = True
         self.page.update()
@@ -365,9 +374,9 @@ class MetadataCleanerApp:
 
             # Показываем уведомление о начале сканирования
             self.show_notification(
-                translator.get("scanning_folder"), 
-                color=ft.colors.BLUE_800, 
-                bgcolor=ft.colors.BLUE_100
+                translator.get("scanning_folder"),
+                color=ft.colors.BLUE_800,
+                bgcolor=ft.colors.BLUE_100,
             )
 
             new_files = []
@@ -387,15 +396,17 @@ class MetadataCleanerApp:
             if new_files:
                 self.add_files(new_files)
                 self.show_notification(
-                    translator.get("files_found", count=len(new_files), total=total_found),
+                    translator.get(
+                        "files_found", count=len(new_files), total=total_found
+                    ),
                     color=ft.colors.GREEN_800,
-                    bgcolor=ft.colors.GREEN_100
+                    bgcolor=ft.colors.GREEN_100,
                 )
             else:
                 self.show_notification(
                     translator.get("no_files_found", total=total_found),
                     color=ft.colors.ORANGE_800,
-                    bgcolor=ft.colors.ORANGE_100
+                    bgcolor=ft.colors.ORANGE_100,
                 )
 
     def add_files(self, file_paths: list[str]):
@@ -459,10 +470,10 @@ class MetadataCleanerApp:
         self.cleaning_results.clear()
         self.file_cards.clear()
         self.files_grid.controls.clear()
-        
+
         # Скрываем кнопку деталей
         self.action_bar.set_details_visible(False)
-        
+
         self.update_ui()
         self.update_empty_state()
 
@@ -540,7 +551,9 @@ class MetadataCleanerApp:
         # Устанавливаем состояние обработки
         self.is_processing = True
         self.action_bar.set_processing_state(True)
-        self.action_bar.set_details_visible(False)  # Скрываем кнопку деталей во время обработки
+        self.action_bar.set_details_visible(
+            False
+        )  # Скрываем кнопку деталей во время обработки
         self.progress_card.reset()
         self.progress_card.update_progress(
             translator.get("starting_cleanup"), translator.get("preparing_files")
@@ -600,7 +613,7 @@ class MetadataCleanerApp:
 
         # Показываем кнопку деталей после завершения обработки
         self.action_bar.set_details_visible(True)
-        
+
         # Обновляем результаты в диалоге деталей
         self.detailed_results_dialog.update_results(self.cleaning_results)
 
@@ -612,12 +625,14 @@ class MetadataCleanerApp:
         if self.settings.get_auto_close_after_completion():
             # Задержка 3 секунды чтобы пользователь видел результат
             import threading
+
             def auto_close():
                 import time
+
                 time.sleep(3.0)
-                if hasattr(self.page, 'window_close'):
+                if hasattr(self.page, "window_close"):
                     self.page.window_close()
-            
+
             threading.Timer(3.0, auto_close).start()
 
         self.page.update()
@@ -728,8 +743,7 @@ class MetadataCleanerApp:
 
         # Показываем уведомление уже на правильном языке
         self.show_notification(
-            translator.get("settings_saved"),
-            action=translator.get("ok")
+            translator.get("settings_saved"), action=translator.get("ok")
         )
 
     def get_file_icon(self, file_path: str) -> ft.Icon:

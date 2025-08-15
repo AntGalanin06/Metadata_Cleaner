@@ -174,7 +174,7 @@ class FileTypeMetadata:
             file_type=FileType.VIDEO,
             supported_fields={
                 "title",
-                "author", 
+                "author",
                 "comment",
                 "description",
                 "creation_time",

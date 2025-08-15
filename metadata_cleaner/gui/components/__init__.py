@@ -7,4 +7,11 @@ from .progress_card import ProgressCard
 from .settings_dialog import SettingsDialog
 from .stats_panel import StatsPanel
 
-__all__ = ["FileCard", "ActionBar", "StatsPanel", "ProgressCard", "SettingsDialog", "DetailedResultsDialog"]
+__all__ = [
+    "FileCard",
+    "ActionBar",
+    "StatsPanel",
+    "ProgressCard",
+    "SettingsDialog",
+    "DetailedResultsDialog",
+]

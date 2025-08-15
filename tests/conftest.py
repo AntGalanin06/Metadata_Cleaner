@@ -21,6 +21,7 @@ def temp_dir() -> Generator[Path, None, None]:
     finally:
         # Очистка временной директории с обработкой заблокированных файлов
         import time
+
         for attempt in range(3):
             try:
                 shutil.rmtree(temp_path)
@@ -75,11 +76,11 @@ def dispatcher(mock_settings: Mock) -> MetadataDispatcher:
 def sample_files(test_files_dir: Path, temp_dir: Path) -> Dict[str, Path]:
     """Копирует образцы файлов во временную директорию."""
     files = {}
-    
+
     # Определяем файлы для копирования
     file_mapping = {
         "image_jpg": "test_image.jpg",
-        "image_jpeg": "test_image.jpeg", 
+        "image_jpeg": "test_image.jpeg",
         "image_png": "test_image.png",
         "image_gif": "test_image.gif",
         "document_docx": "test_document.docx",
@@ -89,14 +90,14 @@ def sample_files(test_files_dir: Path, temp_dir: Path) -> Dict[str, Path]:
         "video_mp4": "test_video.mp4",
         "video_mov": "test_video.mov",
     }
-    
+
     for key, filename in file_mapping.items():
         source = test_files_dir / filename
         if source.exists():
             dest = temp_dir / filename
             shutil.copy2(source, dest)
             files[key] = dest
-    
+
     return files
 
 
@@ -105,23 +106,19 @@ def test_metadata() -> Dict[str, Any]:
     """Тестовые метаданные для проверки."""
     return {
         "author": "Test Author",
-        "creator": "Test Creator", 
+        "creator": "Test Creator",
         "title": "Test Title",
         "subject": "Test Subject",
         "keywords": "test, metadata, cleaner",
         "comments": "Test comments",
         "created": "2023-01-01T10:00:00",
         "modified": "2023-01-02T15:30:00",
-        "gps": {
-            "latitude": 55.7558,
-            "longitude": 37.6176,
-            "altitude": 156
-        },
+        "gps": {"latitude": 55.7558, "longitude": 37.6176, "altitude": 156},
         "camera": {
             "make": "Test Camera",
             "model": "Test Model",
-            "software": "Test Software"
-        }
+            "software": "Test Software",
+        },
     }
 
 
@@ -145,6 +142,7 @@ def cleanup_logs():
     yield
     # Очистка логгеров если необходимо
     import logging
+
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
 
@@ -152,55 +150,44 @@ def cleanup_logs():
 # Маркеры для группировки тестов
 def pytest_configure(config):
     """Конфигурация pytest с пользовательскими маркерами."""
-    config.addinivalue_line(
-        "markers", "unit: Модульные тесты отдельных компонентов"
-    )
-    config.addinivalue_line(
-        "markers", "integration: Интеграционные тесты компонентов"
-    )
-    config.addinivalue_line(
-        "markers", "slow: Медленные тесты (обработка файлов)"
-    )
+    config.addinivalue_line("markers", "unit: Модульные тесты отдельных компонентов")
+    config.addinivalue_line("markers", "integration: Интеграционные тесты компонентов")
+    config.addinivalue_line("markers", "slow: Медленные тесты (обработка файлов)")
     config.addinivalue_line(
         "markers", "requires_files: Тесты, требующие тестовые файлы"
     )
-    config.addinivalue_line(
-        "markers", "video: Тесты видео (требуют ffmpeg)"
-    )
+    config.addinivalue_line("markers", "video: Тесты видео (требуют ffmpeg)")
 
 
 # Пропуск тестов при отсутствии тестовых файлов
 def pytest_collection_modifyitems(config, items):
     """Модификация коллекции тестов."""
     test_files_dir = Path(__file__).parent / "test_files"
-    
+
     for item in items:
         # Помечаем тесты, требующие файлы
         if "requires_files" in item.keywords:
             if not test_files_dir.exists():
-                item.add_marker(
-                    pytest.mark.skip(reason="Тестовые файлы не найдены")
-                )
-        
+                item.add_marker(pytest.mark.skip(reason="Тестовые файлы не найдены"))
+
         # Помечаем медленные тесты
         if "slow" in item.keywords:
             if not config.getoption("--runslow"):
                 item.add_marker(
-                    pytest.mark.skip(reason="Используйте --runslow для запуска медленных тестов")
+                    pytest.mark.skip(
+                        reason="Используйте --runslow для запуска медленных тестов"
+                    )
                 )
 
 
 def pytest_addoption(parser):
     """Добавляет опции командной строки для pytest."""
     parser.addoption(
-        "--runslow", 
-        action="store_true", 
-        default=False, 
-        help="Запуск медленных тестов"
+        "--runslow", action="store_true", default=False, help="Запуск медленных тестов"
     )
     parser.addoption(
         "--runvideo",
-        action="store_true", 
+        action="store_true",
         default=False,
-        help="Запуск тестов видео (требует ffmpeg)"
+        help="Запуск тестов видео (требует ffmpeg)",
     )

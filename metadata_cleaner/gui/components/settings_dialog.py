@@ -41,7 +41,9 @@ class SettingsDialog(ft.UserControl):
         """Получить настройки метаданных по умолчанию из регистра."""
         settings = {}
         for file_type in MetadataRegistry.get_supported_file_types():
-            settings[file_type] = MetadataRegistry.get_default_settings_for_file_type(file_type)
+            settings[file_type] = MetadataRegistry.get_default_settings_for_file_type(
+                file_type
+            )
         return settings
 
     def update_settings(self, settings: dict):
@@ -215,7 +217,7 @@ class SettingsDialog(ft.UserControl):
                         size=16,
                         weight=ft.FontWeight.W_600,
                     ),
-                    ft.Container(height=8                    ),
+                    ft.Container(height=8),
                     self.output_mode_dropdown,
                     ft.Container(height=16),
                     ft.Text(
@@ -266,16 +268,16 @@ class SettingsDialog(ft.UserControl):
         """Получить цвета для карточки в зависимости от темы"""
         # Определяем, темная ли тема
         is_dark_theme = False
-        if hasattr(self.page, 'theme_mode'):
+        if hasattr(self.page, "theme_mode"):
             if self.page.theme_mode == ft.ThemeMode.DARK:
                 is_dark_theme = True
             elif self.page.theme_mode == ft.ThemeMode.LIGHT:
                 is_dark_theme = False
             else:  # SYSTEM
                 # Пытаемся определить системную тему
-                if hasattr(self.page, 'platform_brightness'):
+                if hasattr(self.page, "platform_brightness"):
                     is_dark_theme = self.page.platform_brightness == ft.Brightness.DARK
-        
+
         if is_dark_theme:
             # Для темной темы используем более контрастные цвета
             if is_enabled:
@@ -295,14 +297,14 @@ class SettingsDialog(ft.UserControl):
 
         # Получаем поля из регистра метаданных
         metadata_fields = MetadataRegistry.get_fields_for_file_type(file_type)
-        
+
         # Сортируем по приоритету и категориям
         metadata_fields.sort(key=lambda x: (x.category.value, x.priority))
 
         # Создаем переключатели для каждого поля
         switches = []
         current_category = None
-        
+
         for field in metadata_fields:
             # Добавляем заголовок категории если она изменилась
             if current_category != field.category:
@@ -319,21 +321,23 @@ class SettingsDialog(ft.UserControl):
                         padding=ft.padding.only(top=16, bottom=8),
                     )
                 )
-            
+
             field_name = translator.get(field.name_key)
             field_desc = translator.get(field.description_key)
-            
+
             switch = ft.Switch(
                 label=field_name,
                 value=settings.get(field.key, field.default_remove),
                 data=field.key,  # Сохраняем ключ для обновления
-                on_change=lambda e, file_type=file_type, field_key=field.key: self._on_metadata_switch_change(e, file_type, field_key),
+                on_change=lambda e, file_type=file_type, field_key=field.key: self._on_metadata_switch_change(
+                    e, file_type, field_key
+                ),
             )
 
             # Определяем цвет карточки по умолчанию (красный для удаляемых, зеленый для сохраняемых)
             is_enabled = settings.get(field.key, field.default_remove)
             card_color, text_color = self._get_card_colors(is_enabled)
-            
+
             switches.append(
                 ft.Card(
                     content=ft.Container(
@@ -348,7 +352,11 @@ class SettingsDialog(ft.UserControl):
                                     content=ft.Text(
                                         field_desc,
                                         size=12,
-                                        color=text_color if text_color != ft.colors.ON_SURFACE else ft.colors.ON_SURFACE_VARIANT,
+                                        color=(
+                                            text_color
+                                            if text_color != ft.colors.ON_SURFACE
+                                            else ft.colors.ON_SURFACE_VARIANT
+                                        ),
                                     ),
                                     padding=ft.padding.only(left=10),
                                 ),
@@ -411,31 +419,39 @@ class SettingsDialog(ft.UserControl):
 
     def _on_metadata_switch_change(self, e, file_type: str, field_key: str):
         """Обработчик изменения переключателя метаданных"""
-        self.current_settings["file_type_settings"][file_type][field_key] = e.control.value
+        self.current_settings["file_type_settings"][file_type][
+            field_key
+        ] = e.control.value
         # Обновляем цвет карточки с учетом темы
         card = e.control.parent.parent.parent
         card_color, text_color = self._get_card_colors(e.control.value)
         card.bgcolor = card_color
-        
+
         # Обновляем цвет текста описания
         description_text = e.control.parent.parent.controls[1].content
-        if hasattr(description_text, 'color'):
-            description_text.color = text_color if text_color != ft.colors.ON_SURFACE else ft.colors.ON_SURFACE_VARIANT
-        
+        if hasattr(description_text, "color"):
+            description_text.color = (
+                text_color
+                if text_color != ft.colors.ON_SURFACE
+                else ft.colors.ON_SURFACE_VARIANT
+            )
+
         self.page.update()
 
     def _toggle_all_metadata(self, file_type: str, select_all: bool):
         """Переключить все метаданные для типа файла"""
         # Получаем доступные поля из регистра
         metadata_fields = MetadataRegistry.get_fields_for_file_type(file_type)
-        
+
         # Обновляем настройки для всех доступных полей
         if file_type not in self.current_settings["file_type_settings"]:
             self.current_settings["file_type_settings"][file_type] = {}
-            
+
         for field in metadata_fields:
-            self.current_settings["file_type_settings"][file_type][field.key] = select_all
-        
+            self.current_settings["file_type_settings"][file_type][
+                field.key
+            ] = select_all
+
         # Находим и обновляем только нужную вкладку
         self._update_metadata_tab(file_type)
         self.page.update()
@@ -444,23 +460,25 @@ class SettingsDialog(ft.UserControl):
         """Обновляет содержимое конкретной вкладки метаданных"""
         try:
             tabs_container = self.dialog.content.content
-            if hasattr(tabs_container, 'tabs'):
+            if hasattr(tabs_container, "tabs"):
                 # Запоминаем текущий выбранный индекс
-                current_tab_index = getattr(tabs_container, 'selected_index', 0)
-                
+                current_tab_index = getattr(tabs_container, "selected_index", 0)
+
                 for i, tab in enumerate(tabs_container.tabs):
                     current_file_type = self._get_current_tab_file_type(tab.text)
                     if current_file_type == file_type:
                         # Перестраиваем только содержимое этой вкладки
                         tab.content = self._build_metadata_tab(file_type)
-                        
+
                         # Восстанавливаем выбранную вкладку
                         tabs_container.selected_index = current_tab_index
                         break
         except Exception as e:
             # В случае ошибки делаем полную перестройку с сохранением вкладки
             try:
-                current_tab_index = getattr(self.dialog.content.content, 'selected_index', 0)
+                current_tab_index = getattr(
+                    self.dialog.content.content, "selected_index", 0
+                )
                 self.dialog.content = self._build_content()
                 self.dialog.content.content.selected_index = current_tab_index
             except:
@@ -829,8 +847,6 @@ class SettingsDialog(ft.UserControl):
         }
         return names.get(file_type, file_type)
 
-
-
     def _cancel(self, e):
         """Отмена изменений"""
         self.dialog.open = False
@@ -840,7 +856,7 @@ class SettingsDialog(ft.UserControl):
         """Сброс к настройкам по умолчанию"""
         # Сохраняем текущий язык для проверки
         old_language = self.current_settings.get("language", "en")
-        
+
         # Восстанавливаем дефолтные настройки из регистра
         self.current_settings = {
             "theme": "system",
@@ -856,12 +872,12 @@ class SettingsDialog(ft.UserControl):
         # Это важно чтобы основное приложение правильно определило изменение языка
         if self.on_save:
             self.on_save(self.current_settings)
-        
+
         # Если язык изменился, перестраиваем диалог с новыми переводами
         if old_language != "en":
             # Полностью перестраиваем диалог с новыми переводами
             self.dialog.content = self._build_content()
-            
+
             # Обновляем заголовок диалога
             self.dialog.title = ft.Row(
                 [
@@ -872,7 +888,7 @@ class SettingsDialog(ft.UserControl):
                 ],
                 spacing=8,
             )
-            
+
             # Обновляем кнопки диалога
             self.dialog.actions = [
                 ft.TextButton(
@@ -898,7 +914,7 @@ class SettingsDialog(ft.UserControl):
         else:
             # Если язык не изменился, просто обновляем UI
             self.dialog.content = self._build_content()
-        
+
         self.page.update()
 
     def _save_settings(self, e):
@@ -993,7 +1009,7 @@ class SettingsDialog(ft.UserControl):
         else:
             # Если язык не изменился, обновляем текущие настройки но оставляем диалог открытым
             self.current_settings = settings
-        
+
         self.page.update()
 
     def _get_current_tab_file_type(self, tab_text: str) -> str | None:
@@ -1262,15 +1278,15 @@ Last Updated: June 25, 2025"""
 
     def _parse_text_with_links(self, content: str) -> ft.Column:
         """Парсит текст и создает компоненты с кликабельными ссылками"""
-        lines = content.split('\n')
+        lines = content.split("\n")
         controls = []
-        
+
         for line in lines:
-            if 'https://github.com/AntGalanin06/Metadata_Cleaner' in line:
+            if "https://github.com/AntGalanin06/Metadata_Cleaner" in line:
                 # Разбиваем строку на части до и после ссылки
-                parts = line.split('https://github.com/AntGalanin06/Metadata_Cleaner')
+                parts = line.split("https://github.com/AntGalanin06/Metadata_Cleaner")
                 row_controls = []
-                
+
                 if parts[0]:
                     row_controls.append(
                         ft.Text(
@@ -1279,7 +1295,7 @@ Last Updated: June 25, 2025"""
                             color=ft.colors.ON_SURFACE,
                         )
                     )
-                
+
                 # Создаем кликабельную ссылку
                 row_controls.append(
                     ft.GestureDetector(
@@ -1287,16 +1303,14 @@ Last Updated: June 25, 2025"""
                             "https://github.com/AntGalanin06/Metadata_Cleaner",
                             size=14,
                             color=ft.colors.PRIMARY,
-                            style=ft.TextStyle(
-                                decoration=ft.TextDecoration.UNDERLINE
-                            ),
+                            style=ft.TextStyle(decoration=ft.TextDecoration.UNDERLINE),
                         ),
                         on_tap=lambda e: self.page.launch_url(
                             "https://github.com/AntGalanin06/Metadata_Cleaner"
                         ),
                     )
                 )
-                
+
                 if len(parts) > 1 and parts[1]:
                     row_controls.append(
                         ft.Text(
@@ -1305,7 +1319,7 @@ Last Updated: June 25, 2025"""
                             color=ft.colors.ON_SURFACE,
                         )
                     )
-                
+
                 controls.append(
                     ft.Row(
                         controls=row_controls,
@@ -1321,7 +1335,7 @@ Last Updated: June 25, 2025"""
                         color=ft.colors.ON_SURFACE,
                     )
                 )
-        
+
         return ft.Column(
             controls=controls,
             spacing=2,
@@ -1332,7 +1346,7 @@ Last Updated: June 25, 2025"""
         """Показать диалог с документом"""
         # Создаем контент с кликабельными ссылками
         parsed_content = self._parse_text_with_links(content)
-        
+
         doc_dialog = ft.AlertDialog(
             modal=True,
             title=ft.Row(

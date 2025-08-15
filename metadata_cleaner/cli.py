@@ -92,7 +92,7 @@ def process_files(
 ):
     """Обработка списка файлов."""
     from .services.settings_service import SettingsService
-    
+
     settings_service = SettingsService()
     dispatcher = MetadataDispatcher(settings_service)
 
@@ -140,8 +140,10 @@ def process_files(
             errors += 1
 
     if not quiet:
-        print(f"\nРезультат: {processed} обработано, {skipped} пропущено, {errors} ошибок")
-    
+        print(
+            f"\nРезультат: {processed} обработано, {skipped} пропущено, {errors} ошибок"
+        )
+
     # Возвращаем код ошибки если были ошибки
     if errors > 0:
         return 1

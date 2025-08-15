@@ -53,6 +53,12 @@ jobs:
         poetry run safety check --json --output safety-report.json || true
         poetry run safety check --short-report || true
     
+    - name: Run pip-audit for additional vulnerability scanning
+      run: |
+        echo "🔍 Running pip-audit for comprehensive vulnerability scanning..."
+        poetry run pip-audit --format=json --output=pip-audit-report.json || true
+        poetry run pip-audit --desc || true
+    
     - name: Upload vulnerability reports
       uses: actions/upload-artifact@v4
       if: always()
@@ -60,6 +66,7 @@ jobs:
         name: vulnerability-reports-${{ github.run_id }}
         path: |
           safety-report.json
+          pip-audit-report.json
         retention-days: 30
 
   # Static code security analysis
