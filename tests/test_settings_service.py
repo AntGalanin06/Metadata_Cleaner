@@ -291,7 +291,7 @@ class TestSettingsService(unittest.TestCase):
                 for field in fields:
                     # Проверяем, что поле либо есть, либо есть похожее
                     field_exists = field in metadata or any(
-                        field in key for key in metadata.keys()
+                        field in key for key in metadata
                     )
                     if not field_exists:
                         # Выводим доступные поля для отладки

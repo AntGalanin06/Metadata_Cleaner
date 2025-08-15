@@ -169,7 +169,7 @@ class DetailedResultsDialog(ft.UserControl):
         results_list.controls.append(stats_header)
 
         # Добавляем результаты для каждого файла
-        for file_path, result in self.results.items():
+        for result in self.results.values():
             results_list.controls.append(self._build_file_result_card(result))
 
         return ft.Container(
@@ -208,7 +208,7 @@ class DetailedResultsDialog(ft.UserControl):
                     )
 
                     # Создаем красивые теги для групп метаданных
-                    for metadata_key, result_fields in field_mapping.items():
+                    for metadata_key in field_mapping:
                         field_info = MetadataRegistry.get_field_by_key(
                             file_type, metadata_key
                         )
@@ -255,7 +255,7 @@ class DetailedResultsDialog(ft.UserControl):
                     for fields in field_mapping.values():
                         processed_fields.update(fields)
 
-                    for field in result.cleaned_fields.keys():
+                    for field in result.cleaned_fields:
                         if field not in processed_fields:
                             metadata_chips.append(
                                 ft.Container(

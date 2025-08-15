@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """Командная строка для Metadata Cleaner."""
 
 from __future__ import annotations

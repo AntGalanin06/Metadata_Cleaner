@@ -177,14 +177,14 @@ class ImageHandler(BaseHandler):
                     if piexif.ExifIFD.UserComment in exif_ifd:
                         user_comment = exif_ifd[piexif.ExifIFD.UserComment]
                         # UserComment начинается с 8-байтного заголовка кодировки
-                        EXIF_USER_COMMENT_HEADER_SIZE = 8
+                        exif_user_comment_header_size = 8
                         if (
                             isinstance(user_comment, bytes)
-                            and len(user_comment) > EXIF_USER_COMMENT_HEADER_SIZE
+                            and len(user_comment) > exif_user_comment_header_size
                         ):
                             try:
                                 cleaned_fields["user_comment"] = user_comment[
-                                    EXIF_USER_COMMENT_HEADER_SIZE:
+                                    exif_user_comment_header_size:
                                 ].decode("utf-8", errors="ignore")
                             except:
                                 cleaned_fields["user_comment"] = str(user_comment)

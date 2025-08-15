@@ -464,7 +464,7 @@ class SettingsDialog(ft.UserControl):
                 # Запоминаем текущий выбранный индекс
                 current_tab_index = getattr(tabs_container, "selected_index", 0)
 
-                for i, tab in enumerate(tabs_container.tabs):
+                for tab in tabs_container.tabs:
                     current_file_type = self._get_current_tab_file_type(tab.text)
                     if current_file_type == file_type:
                         # Перестраиваем только содержимое этой вкладки
