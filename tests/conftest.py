@@ -15,6 +15,9 @@ from metadata_cleaner.cleaner.dispatcher import MetadataDispatcher
 @pytest.fixture
 def temp_dir() -> Generator[Path, None, None]:
     """Создает временную директорию для тестов."""
+    max_cleanup_attempts = 3
+    cleanup_retry_delay = 0.1
+    
     temp_path = Path(tempfile.mkdtemp())
     try:
         yield temp_path
@@ -22,13 +25,13 @@ def temp_dir() -> Generator[Path, None, None]:
         # Очистка временной директории с обработкой заблокированных файлов
         import time
 
-        for attempt in range(3):
+        for attempt in range(max_cleanup_attempts):
             try:
                 shutil.rmtree(temp_path)
                 break
             except (PermissionError, OSError):
-                if attempt < 2:
-                    time.sleep(0.1)
+                if attempt < max_cleanup_attempts - 1:
+                    time.sleep(cleanup_retry_delay)
                     continue
 
 

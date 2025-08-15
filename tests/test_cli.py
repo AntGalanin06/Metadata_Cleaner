@@ -15,11 +15,13 @@ class TestCLI:
 
     def test_main_no_args(self):
         """Тест запуска без аргументов."""
+        expected_missing_args_exit_code = 2
+        
         with patch("sys.argv", ["metadata_cleaner"]):
             with pytest.raises(SystemExit) as exc_info:
                 main()
             # Должен завершиться с ошибкой из-за отсутствия обязательных аргументов
-            assert exc_info.value.code == 2
+            assert exc_info.value.code == expected_missing_args_exit_code
 
     def test_main_help(self):
         """Тест показа справки."""
@@ -37,15 +39,15 @@ class TestCLI:
 
     def test_main_with_nonexistent_file(self):
         """Тест с несуществующим файлом."""
-        with patch("sys.argv", ["metadata_cleaner", "/nonexistent/file.jpg"]):
-            with patch("metadata_cleaner.cli.MetadataDispatcher") as mock_dispatcher:
-                mock_dispatcher.return_value.clean_file.return_value = {
-                    "status": "error",
-                    "message": "File not found",
-                }
-                result = main()
-                # Должен завершиться с ошибкой
-                assert result != 0
+        with patch("sys.argv", ["metadata_cleaner", "/nonexistent/file.jpg"]), \
+             patch("metadata_cleaner.cli.MetadataDispatcher") as mock_dispatcher:
+            mock_dispatcher.return_value.clean_file.return_value = {
+                "status": "error",
+                "message": "File not found",
+            }
+            result = main()
+            # Должен завершиться с ошибкой
+            assert result != 0
 
     def test_main_with_valid_arguments(self):
         """Тест с валидными аргументами."""
@@ -56,30 +58,28 @@ class TestCLI:
             # Создаем временный файл
             temp_path.write_bytes(b"fake jpeg data")
 
-            with patch("sys.argv", ["metadata_cleaner", str(temp_path)]):
-                with patch(
-                    "metadata_cleaner.cli.MetadataDispatcher"
-                ) as mock_dispatcher_class:
-                    mock_dispatcher = mock_dispatcher_class.return_value
-                    # Мокаем методы как они используются в CLI
-                    mock_dispatcher.is_supported.return_value = True
+            with patch("sys.argv", ["metadata_cleaner", str(temp_path)]), \
+                 patch("metadata_cleaner.cli.MetadataDispatcher") as mock_dispatcher_class:
+                mock_dispatcher = mock_dispatcher_class.return_value
+                # Мокаем методы как они используются в CLI
+                mock_dispatcher.is_supported.return_value = True
 
-                    from metadata_cleaner.cleaner.models import (
-                        CleanStatus,
-                        CleanResult,
-                        FileJob,
-                    )
+                from metadata_cleaner.cleaner.models import (
+                    CleanStatus,
+                    CleanResult,
+                    FileJob,
+                )
 
-                    # Создаем успешный результат
-                    job = FileJob(file_path=Path(str(temp_path)))
-                    mock_result = CleanResult(
-                        job=job, status=CleanStatus.SUCCESS, message="Success"
-                    )
-                    mock_dispatcher.process_file_with_options.return_value = mock_result
+                # Создаем успешный результат
+                job = FileJob(file_path=Path(str(temp_path)))
+                mock_result = CleanResult(
+                    job=job, status=CleanStatus.SUCCESS, message="Success"
+                )
+                mock_dispatcher.process_file_with_options.return_value = mock_result
 
-                    result = main()
-                    # Должен завершиться успешно
-                    assert result == 0
+                result = main()
+                # Должен завершиться успешно
+                assert result == 0
         finally:
             # Удаляем временный файл
             if temp_path.exists():
@@ -94,7 +94,7 @@ class TestCLIIntegration:
         """Интеграционный тест справки."""
         import subprocess
 
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603
             [
                 sys.executable,
                 "-c",
@@ -102,6 +102,7 @@ class TestCLIIntegration:
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
 
         # Справка должна содержать основные опции
@@ -111,7 +112,7 @@ class TestCLIIntegration:
         """Тест обработки ошибок CLI."""
         import subprocess
 
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603
             [
                 sys.executable,
                 "-c",
@@ -119,6 +120,7 @@ class TestCLIIntegration:
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
 
         # Должен завершиться с ошибкой

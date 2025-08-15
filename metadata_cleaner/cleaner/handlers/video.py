@@ -109,7 +109,7 @@ class VideoHandler(BaseHandler):
             ffmpeg_cmd = None
             for path in ffmpeg_paths:
                 try:
-                    result = subprocess.run(
+                    result = subprocess.run(  # noqa: S603
                         [path, "-version"],
                         capture_output=True,
                         text=True,
@@ -144,7 +144,7 @@ class VideoHandler(BaseHandler):
             ]
 
             # Выполняем команду
-            result = subprocess.run(
+            result = subprocess.run(  # noqa: S603
                 cmd,
                 capture_output=True,
                 text=True,
@@ -214,7 +214,7 @@ class VideoHandler(BaseHandler):
 
         for path in ffmpeg_paths:
             try:
-                result = subprocess.run(
+                result = subprocess.run(  # noqa: S603
                     [path, "-version"],
                     capture_output=True,
                     text=True,
