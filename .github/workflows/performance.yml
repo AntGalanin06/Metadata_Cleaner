@@ -105,19 +105,19 @@ jobs:
             echo "Running quick performance tests..."
             poetry run pytest tests/test_performance.py::TestPerformance::test_single_file_processing_time \
                                                         tests/test_performance.py::TestPerformance::test_memory_usage_stability \
-                                                        --runslow -v --tb=short \
+                                                        -m slow -v --tb=short \
                                                         --benchmark-json=benchmark-results.json
             ;;
           "full")
             echo "Running full performance test suite..."
-            poetry run pytest tests/test_performance.py --runslow -v --tb=short \
+            poetry run pytest tests/test_performance.py -m slow -v --tb=short \
                                                         --benchmark-json=benchmark-results.json
             ;;
           "stress")
             echo "Running stress tests..."
             poetry run pytest tests/test_performance.py::TestPerformance::test_stress_test_many_files \
                                                         tests/test_performance.py::TestPerformance::test_concurrent_processing \
-                                                        --runslow -v --tb=short \
+                                                        -m slow -v --tb=short \
                                                         --benchmark-json=benchmark-results.json
             ;;
         esac

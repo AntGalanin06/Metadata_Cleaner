@@ -70,14 +70,12 @@ jobs:
     - name: Security scan with Bandit
       run: |
         echo "🔒 Security scanning..."
-        poetry run pip install bandit[toml]
         poetry run bandit -r metadata_cleaner/ -f json -o bandit-report.json || true
         poetry run bandit -r metadata_cleaner/ -ll || true
     
     - name: Dependency vulnerability scan
       run: |
         echo "🛡️ Dependency vulnerability scan..."
-        poetry run pip install safety
         poetry run safety check --json --output safety-report.json || true
         poetry run safety check || true
     
@@ -182,9 +180,23 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }}
     
-    - name: Install analysis tools
-      run: |
-        pip install radon xenon vulture
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: ${{ env.POETRY_VERSION }}
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+    
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-metrics-${{ hashFiles('**/poetry.lock') }}
+    
+    - name: Install dependencies
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: poetry install --with dev
     
     - name: Calculate code metrics
       run: |
@@ -196,19 +208,17 @@ jobs:
         
         echo ""
         echo "🔢 Cyclomatic Complexity:"
-        radon cc metadata_cleaner -a -nc
+        poetry run radon cc metadata_cleaner -a -nc
         
         echo ""
         echo "🏗️ Maintainability Index:"
-        radon mi metadata_cleaner -nc
+        poetry run radon mi metadata_cleaner -nc
         
         echo ""
         echo "📈 Raw Metrics:"
-        radon raw metadata_cleaner -s
+        poetry run radon raw metadata_cleaner -s
         
-        echo ""
-        echo "🔍 Dead Code Detection:"
-        vulture metadata_cleaner --min-confidence 60 || true
+
     
     - name: Generate metrics report
       run: |
@@ -216,12 +226,12 @@ jobs:
         echo "" >> metrics-report.md
         echo "## Complexity Analysis" >> metrics-report.md
         echo "\`\`\`" >> metrics-report.md
-        radon cc metadata_cleaner -a >> metrics-report.md || true
+        poetry run radon cc metadata_cleaner -a >> metrics-report.md || true
         echo "\`\`\`" >> metrics-report.md
         echo "" >> metrics-report.md
         echo "## Maintainability" >> metrics-report.md
         echo "\`\`\`" >> metrics-report.md
-        radon mi metadata_cleaner >> metrics-report.md || true
+        poetry run radon mi metadata_cleaner >> metrics-report.md || true
         echo "\`\`\`" >> metrics-report.md
     
     - name: Upload metrics report
