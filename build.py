@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """
-Скрипт сборки приложения Metadata Cleaner.
-Автоматически собирает приложение для текущей платформы.
+Modern build script for Metadata Cleaner.
+Supports all platforms with enhanced error handling and logging.
+Version: 2.0.0
 """
 
+import argparse
+import json
+import logging
+import os
 import platform
 import shutil
 import subprocess
@@ -12,150 +17,170 @@ import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+# Configuration
+APP_NAME = "MetadataCleaner"
+APP_VERSION = "1.0.1"
+PROJECT_ROOT = Path(__file__).parent
+DIST_DIR = PROJECT_ROOT / "dist"
+ASSETS_DIR = PROJECT_ROOT / "assets"
+BUNDLED_FFMPEG_DIR = PROJECT_ROOT / "bundled_ffmpeg"
+
+# Logging setup
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 
-def safe_print(text):
-    """Безопасный вывод с учетом платформы"""
-    if platform.system() == "Windows":
-        # Убираем эмодзи для Windows
-        text = text.replace("🚀", "").replace("🔍", "").replace("✅", "").replace("❌", "").replace("📦", "").replace("💡", "").replace("📁", "").replace("🎬", "").replace("🔨", "").replace("🧪", "").replace("🎉", "").replace("⚠️", "").replace("🪟", "").replace("🍎", "").replace("🐧", "")
-        # Убираем лишние пробелы
-        text = " ".join(text.split())
-    print(text)
-
-def run_command(cmd, cwd=None):
-    """Выполнить команду в shell"""
-    print(f"> {cmd}")
-    result = subprocess.run(cmd, shell=True, cwd=cwd, check=True)
-    return result
+class BuildError(Exception):
+    """Custom exception for build errors."""
+    pass
 
 
-def create_assets_folder():
-    """Создать папку assets с ресурсами"""
-    assets_dir = Path("assets")
-    if not assets_dir.exists():
-        assets_dir.mkdir()
-
-    # Создать подпапки если не существуют
-    (assets_dir / "icons").mkdir(exist_ok=True)
-    (assets_dir / "screenshots").mkdir(exist_ok=True)
-
-    print("+ Папка assets создана")
-
-
-def download_ffmpeg():
-    """Скачать FFmpeg для текущей платформы"""
-    if platform.system() == "Windows":
-        safe_print("Downloading FFmpeg for current platform...")
-    else:
-        safe_print("Загрузка FFmpeg для текущей платформы...")
+class PlatformBuilder:
+    """Base class for platform-specific builders."""
     
-    system = platform.system()
-    ffmpeg_dir = Path("bundled_ffmpeg")
-    ffmpeg_dir.mkdir(exist_ok=True)
+    def __init__(self, verbose: bool = False):
+        self.verbose = verbose
+        self.system = platform.system()
+        self.machine = platform.machine()
+        
+        if verbose:
+            logging.getLogger().setLevel(logging.DEBUG)
     
-    # Проверить существующий FFmpeg
-    if system == "Windows":
-        ffmpeg_path = ffmpeg_dir / "ffmpeg.exe"
-    else:
-        ffmpeg_path = ffmpeg_dir / "ffmpeg"
-
-    if ffmpeg_path.exists():
-        if platform.system() == "Windows":
-            safe_print(f"+ FFmpeg already exists: {ffmpeg_path}")
+    def run_command(self, cmd: List[str], cwd: Optional[Path] = None, 
+                   capture_output: bool = False) -> subprocess.CompletedProcess:
+        """Run a command with proper error handling."""
+        logger.debug(f"Running: {' '.join(cmd)}")
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=cwd,
+                capture_output=capture_output,
+                text=True,
+                check=True
+            )
+            return result
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Command failed: {' '.join(cmd)}")
+            logger.error(f"Exit code: {e.returncode}")
+            if e.stdout:
+                logger.error(f"Stdout: {e.stdout}")
+            if e.stderr:
+                logger.error(f"Stderr: {e.stderr}")
+            raise BuildError(f"Command failed: {' '.join(cmd)}") from e
+    
+    def ensure_directory(self, path: Path) -> None:
+        """Ensure directory exists."""
+        path.mkdir(parents=True, exist_ok=True)
+        logger.debug(f"Ensured directory: {path}")
+    
+    def check_dependencies(self) -> None:
+        """Check required dependencies."""
+        try:
+            import PyInstaller
+            logger.info(f"PyInstaller found: {PyInstaller.__version__}")
+        except ImportError:
+            logger.info("Installing PyInstaller...")
+            self.run_command([sys.executable, "-m", "pip", "install", "pyinstaller"])
+            logger.info("PyInstaller installed")
+    
+    def create_assets_folder(self) -> None:
+        """Create assets folder structure."""
+        logger.info("Creating assets folder structure...")
+        
+        self.ensure_directory(ASSETS_DIR / "icons")
+        self.ensure_directory(ASSETS_DIR / "screenshots")
+        
+        logger.info("Assets folder structure created")
+    
+    def download_ffmpeg(self) -> Path:
+        """Download FFmpeg for the current platform."""
+        logger.info(f"Downloading FFmpeg for {self.system} {self.machine}...")
+        
+        self.ensure_directory(BUNDLED_FFMPEG_DIR)
+        
+        # Check if FFmpeg already exists
+        ffmpeg_binary = self._get_ffmpeg_binary_name()
+        ffmpeg_path = BUNDLED_FFMPEG_DIR / ffmpeg_binary
+        
+        if ffmpeg_path.exists():
+            logger.info(f"FFmpeg already exists: {ffmpeg_path}")
+            return BUNDLED_FFMPEG_DIR
+        
+        # Download based on platform
+        if self.system == "Windows":
+            return self._download_ffmpeg_windows()
+        elif self.system == "Darwin":
+            return self._download_ffmpeg_macos()
+        elif self.system == "Linux":
+            return self._download_ffmpeg_linux()
         else:
-            safe_print(f"+ FFmpeg уже существует: {ffmpeg_path}")
-        return ffmpeg_dir
+            logger.warning(f"FFmpeg auto-download not supported for {self.system}")
+            return BUNDLED_FFMPEG_DIR
     
-    if system == "Darwin":
-        # macOS - используем evermeet.cx (надежный источник для macOS)
-        arch = platform.machine().lower()
-        if arch == "arm64":
-            url = "https://evermeet.cx/pub/ffmpeg/ffmpeg.zip"
-        else:
-            url = "https://evermeet.cx/pub/ffmpeg/ffmpeg.zip"
-            
-        # Это архив
-        with tempfile.TemporaryDirectory() as temp_dir:
-            zip_path = Path(temp_dir) / "ffmpeg.zip"
-            
-            if platform.system() == "Windows":
-                print(f"Downloading from {url}...")
-            else:
-                print(f"Загружаю с {url}...")
-            urllib.request.urlretrieve(url, zip_path)
-            
-            if platform.system() == "Windows":
-                print("Extracting...")
-            else:
-                print("Распаковываю...")
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(temp_dir)
-            
-            # Находим ffmpeg в распакованной папке
-            ffmpeg_binary = None
-            for file in Path(temp_dir).rglob("ffmpeg"):
-                if file.is_file() and file.name == "ffmpeg":
-                    ffmpeg_binary = file
-                    break
-            
-            if ffmpeg_binary:
-                target_path = ffmpeg_dir / "ffmpeg"
-                shutil.copy2(ffmpeg_binary, target_path)
-                target_path.chmod(0o755)  # Делаем исполняемым
-                if platform.system() == "Windows":
-                    print(f"+ FFmpeg downloaded: {target_path}")
-                else:
-                    print(f"+ FFmpeg скачан: {target_path}")
-            else:
-                if platform.system() == "Windows":
-                    print("- FFmpeg not found in archive")
-                else:
-                    print("- FFmpeg не найден в архиве")
+    def _get_ffmpeg_binary_name(self) -> str:
+        """Get the expected FFmpeg binary name for the platform."""
+        return "ffmpeg.exe" if self.system == "Windows" else "ffmpeg"
     
-    elif system == "Windows":
-        # Windows - используем gyan.dev (стабильные сборки)
+    def _download_ffmpeg_windows(self) -> Path:
+        """Download FFmpeg for Windows."""
         url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
         
         with tempfile.TemporaryDirectory() as temp_dir:
             zip_path = Path(temp_dir) / "ffmpeg.zip"
             
-            if platform.system() == "Windows":
-                print(f"Downloading from {url}...")
-            else:
-                print(f"Загружаю с {url}...")
+            logger.info(f"Downloading from {url}...")
             urllib.request.urlretrieve(url, zip_path)
             
-            if platform.system() == "Windows":
-                print("Extracting...")
-            else:
-                print("Распаковываю...")
+            logger.info("Extracting...")
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(temp_dir)
             
-            # Находим ffmpeg.exe в папке bin
-            ffmpeg_binary = None
-            for file in Path(temp_dir).rglob("ffmpeg.exe"):
-                if file.is_file() and file.name == "ffmpeg.exe":
-                    ffmpeg_binary = file
-                    break
+            # Find ffmpeg.exe
+            for ffmpeg_file in Path(temp_dir).rglob("ffmpeg.exe"):
+                if ffmpeg_file.is_file():
+                    target_path = BUNDLED_FFMPEG_DIR / "ffmpeg.exe"
+                    shutil.copy2(ffmpeg_file, target_path)
+                    logger.info(f"FFmpeg downloaded: {target_path}")
+                    return BUNDLED_FFMPEG_DIR
             
-            if ffmpeg_binary:
-                target_path = ffmpeg_dir / "ffmpeg.exe"
-                shutil.copy2(ffmpeg_binary, target_path)
-                if platform.system() == "Windows":
-                    print(f"+ FFmpeg downloaded: {target_path}")
-                else:
-                    print(f"+ FFmpeg скачан: {target_path}")
-            else:
-                if platform.system() == "Windows":
-                    print("- ffmpeg.exe not found in archive")
-                else:
-                    print("- ffmpeg.exe не найден в архиве")
+            raise BuildError("ffmpeg.exe not found in downloaded archive")
     
-    elif system == "Linux":
-        # Linux - автоопределение архитектуры
-        arch = platform.machine().lower()
+    def _download_ffmpeg_macos(self) -> Path:
+        """Download FFmpeg for macOS."""
+        url = "https://evermeet.cx/pub/ffmpeg/ffmpeg.zip"
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            zip_path = Path(temp_dir) / "ffmpeg.zip"
+            
+            logger.info(f"Downloading from {url}...")
+            urllib.request.urlretrieve(url, zip_path)
+            
+            logger.info("Extracting...")
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+            
+            # Find ffmpeg binary
+            for ffmpeg_file in Path(temp_dir).rglob("ffmpeg"):
+                if ffmpeg_file.is_file() and ffmpeg_file.name == "ffmpeg":
+                    target_path = BUNDLED_FFMPEG_DIR / "ffmpeg"
+                    shutil.copy2(ffmpeg_file, target_path)
+                    target_path.chmod(0o755)
+                    logger.info(f"FFmpeg downloaded: {target_path}")
+                    return BUNDLED_FFMPEG_DIR
+            
+            raise BuildError("ffmpeg not found in downloaded archive")
+    
+    def _download_ffmpeg_linux(self) -> Path:
+        """Download FFmpeg for Linux."""
+        arch = self.machine.lower()
+        
         if arch in ["x86_64", "amd64"]:
             url = "https://johnvansickle.com/ffmpeg/builds/ffmpeg-git-amd64-static.tar.xz"
             arch_name = "amd64"
@@ -163,73 +188,58 @@ def download_ffmpeg():
             url = "https://johnvansickle.com/ffmpeg/builds/ffmpeg-git-aarch64-static.tar.xz"
             arch_name = "aarch64"
         else:
-            print(f"! Архитектура {arch} не поддерживается для автоскачивания FFmpeg")
-            print("Пожалуйста, установите FFmpeg вручную или поместите бинарник в bundled_ffmpeg/")
-            return ffmpeg_dir
+            logger.warning(f"Architecture {arch} not supported for FFmpeg auto-download")
+            logger.info("Please install FFmpeg manually or place binary in bundled_ffmpeg/")
+            return BUNDLED_FFMPEG_DIR
         
-        safe_print(f"Определена архитектура Linux: {arch} → {arch_name}")
+        logger.info(f"Detected Linux architecture: {arch} → {arch_name}")
         
         with tempfile.TemporaryDirectory() as temp_dir:
             tar_path = Path(temp_dir) / "ffmpeg.tar.xz"
             
-            print(f"Загружаю FFmpeg для {arch_name} с {url}...")
+            logger.info(f"Downloading FFmpeg for {arch_name} from {url}...")
             try:
                 urllib.request.urlretrieve(url, tar_path)
             except Exception as e:
-                print(f"! Ошибка загрузки FFmpeg для {arch_name}: {e}")
-                print("Попробуем альтернативный источник...")
-                # Альтернативный источник для ARM64
-                if arch_name == "aarch64":
-                    alt_url = "https://evermeet.cx/pub/ffmpeg/ffmpeg.zip"
-                    print(f"Загружаю с альтернативного источника: {alt_url}")
-                    urllib.request.urlretrieve(alt_url, tar_path)
-                else:
-                    return ffmpeg_dir
+                logger.error(f"Failed to download FFmpeg for {arch_name}: {e}")
+                return BUNDLED_FFMPEG_DIR
             
-            print("Распаковываю...")
+            logger.info("Extracting...")
             import tarfile
-            try:
-                with tarfile.open(tar_path, 'r:xz') as tar_ref:
-                    tar_ref.extractall(temp_dir)
-            except:
-                # Попробуем как ZIP если это альтернативный источник
-                with zipfile.ZipFile(tar_path, 'r') as zip_ref:
-                    zip_ref.extractall(temp_dir)
+            with tarfile.open(tar_path, 'r:xz') as tar_ref:
+                tar_ref.extractall(temp_dir)
             
-            # Находим ffmpeg в папке
-            ffmpeg_binary = None
-            for file in Path(temp_dir).rglob("ffmpeg"):
-                if file.is_file() and file.name == "ffmpeg":
-                    ffmpeg_binary = file
-                    break
+            # Find ffmpeg binary
+            for ffmpeg_file in Path(temp_dir).rglob("ffmpeg"):
+                if ffmpeg_file.is_file() and ffmpeg_file.name == "ffmpeg":
+                    target_path = BUNDLED_FFMPEG_DIR / "ffmpeg"
+                    shutil.copy2(ffmpeg_file, target_path)
+                    target_path.chmod(0o755)
+                    logger.info(f"FFmpeg for {arch_name} downloaded: {target_path}")
+                    return BUNDLED_FFMPEG_DIR
             
-            if ffmpeg_binary:
-                target_path = ffmpeg_dir / "ffmpeg"
-                shutil.copy2(ffmpeg_binary, target_path)
-                target_path.chmod(0o755)  # Делаем исполняемым
-                print(f"+ FFmpeg для {arch_name} скачан: {target_path}")
-            else:
-                print(f"- FFmpeg для {arch_name} не найден в архиве")
-                print("Попробуйте установить FFmpeg вручную: sudo apt install ffmpeg")
+            logger.warning(f"FFmpeg for {arch_name} not found in archive")
+            return BUNDLED_FFMPEG_DIR
     
-    else:
-        print(f"! Автоскачивание FFmpeg для {system} не поддерживается")
-        print("Пожалуйста, установите FFmpeg вручную или поместите бинарник в bundled_ffmpeg/")
+    def create_spec_file(self) -> None:
+        """Create PyInstaller spec file."""
+        spec_path = PROJECT_ROOT / f"{APP_NAME}.spec"
+        
+        if spec_path.exists():
+            logger.info("PyInstaller spec file already exists")
+            return
+        
+        logger.info("Creating PyInstaller spec file...")
+        
+        spec_content = self._generate_spec_content()
+        spec_path.write_text(spec_content)
+        
+        logger.info(f"PyInstaller spec file created: {spec_path}")
     
-    return ffmpeg_dir
-
-
-def ensure_spec_file():
-    """Убедиться что spec файл существует"""
-    spec_path = Path("MetadataCleaner.spec")
-    if spec_path.exists():
-        print("+ MetadataCleaner.spec найден")
-        return
-    
-    print("Создаю MetadataCleaner.spec...")
-    
-    # Создаем минимальный spec файл
-    spec_content = '''# -*- mode: python ; coding: utf-8 -*-
+    def _generate_spec_content(self) -> str:
+        """Generate PyInstaller spec file content."""
+        return f'''# -*- mode: python ; coding: utf-8 -*-
+# Auto-generated PyInstaller spec file for {APP_NAME}
 
 import platform
 
@@ -245,14 +255,23 @@ a = Analysis(
     ],
     hiddenimports=[
         'flet.core',
+        'flet.fastapi',
         'exifread',
-        'PyPDF2', 
+        'PyPDF2',
         'pymediainfo',
+        'piexif',
+        'pillow_heif',
+        'hachoir',
     ],
     hookspath=[],
-    hooksconfig={},
+    hooksconfig={{}},
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        'tkinter',
+        'matplotlib',
+        'numpy',
+        'scipy',
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
@@ -261,15 +280,15 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-# Create different build configurations based on platform
+# Platform-specific build configurations
 if platform.system() == "Linux":
-    # Linux: Create directory with executable for easier installation
+    # Linux: Create directory with executable for packaging
     exe = EXE(
         pyz,
         a.scripts,
         [],
         exclude_binaries=True,
-        name='MetadataCleaner',
+        name='{APP_NAME}',
         debug=False,
         bootloader_ignore_signals=False,
         strip=False,
@@ -288,10 +307,10 @@ if platform.system() == "Linux":
         strip=False,
         upx=True,
         upx_exclude=[],
-        name='MetadataCleaner'
+        name='{APP_NAME}'
     )
-else:
-    # Windows and other platforms: Single executable
+elif platform.system() == "Darwin":
+    # macOS: Single executable and app bundle
     exe = EXE(
         pyz,
         a.scripts,
@@ -299,7 +318,69 @@ else:
         a.zipfiles,
         a.datas,
         [],
-        name='MetadataCleaner',
+        name='{APP_NAME}',
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=True,
+        upx_exclude=[],
+        runtime_tmpdir=None,
+        console=False,
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        target_arch=None,
+        codesign_identity=None,
+        entitlements_file=None,
+        icon='assets/icons/icon.icns',
+    )
+    
+    # Create app bundle
+    app = BUNDLE(
+        exe,
+        name='{APP_NAME}.app',
+        icon='assets/icons/icon.icns',
+        bundle_identifier='com.antgalanin.metadatacleaner',
+        version='{APP_VERSION}',
+        info_plist={{
+            'CFBundleShortVersionString': '{APP_VERSION}',
+            'CFBundleVersion': '{APP_VERSION}',
+            'NSPrincipalClass': 'NSApplication',
+            'NSAppleScriptEnabled': False,
+            'LSUIElement': False,
+            'NSHighResolutionCapable': True,
+            'CFBundleDocumentTypes': [
+                {{
+                    'CFBundleTypeName': 'Images',
+                    'CFBundleTypeRole': 'Editor',
+                    'LSItemContentTypes': ['public.image'],
+                }},
+                {{
+                    'CFBundleTypeName': 'PDF Documents',
+                    'CFBundleTypeRole': 'Editor',
+                    'LSItemContentTypes': ['com.adobe.pdf'],
+                }},
+                {{
+                    'CFBundleTypeName': 'Office Documents',
+                    'CFBundleTypeRole': 'Editor',
+                    'LSItemContentTypes': [
+                        'org.openxmlformats.wordprocessingml.document',
+                        'org.openxmlformats.presentationml.presentation',
+                        'org.openxmlformats.spreadsheetml.sheet',
+                    ],
+                }},
+            ],
+        }},
+    )
+else:
+    # Windows: Single executable
+    exe = EXE(
+        pyz,
+        a.scripts,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
+        [],
+        name='{APP_NAME}',
         debug=False,
         bootloader_ignore_signals=False,
         strip=False,
@@ -314,358 +395,173 @@ else:
         entitlements_file=None,
         icon='assets/icons/icon.ico',
     )
-
-# macOS App Bundle
-if platform.system() == "Darwin":
-    app = BUNDLE(
-        exe,
-        name='MetadataCleaner.app',
-        icon='assets/icons/icon.icns',
-        bundle_identifier='com.antgalanin.metadatacleaner',
-        version='1.0.1',
-        info_plist={
-            'CFBundleShortVersionString': '1.0.1',
-            'CFBundleVersion': '1.0.1',
-            'NSPrincipalClass': 'NSApplication',
-            'NSAppleScriptEnabled': False,
-            'LSUIElement': False,
-        },
-    )
 '''
     
-    spec_path.write_text(spec_content)
-    print(f"+ MetadataCleaner.spec создан")
-
-
-def build_app():
-    """Собрать приложение с PyInstaller"""
-
-    # Очистить предыдущие сборки
-    if Path("dist").exists():
-        shutil.rmtree("dist")
-    if Path("build").exists():
-        shutil.rmtree("build")
-
-    # Убедиться что spec файл существует
-    ensure_spec_file()
-
-    # Собрать с PyInstaller
-    run_command("pyinstaller MetadataCleaner.spec")
-
-
-def create_linux_appimage():
-    """Создать AppImage для Linux"""
-    if platform.system() != "Linux":
-        return
-    
-    print("Создание AppImage для Linux...")
-    
-    # Проверить наличие appimagetool с поддержкой ARM64
-    appimage_tool = None
-    
-    # Определяем архитектуру системы
-    system_arch = platform.machine().lower()
-    if system_arch in ["x86_64", "amd64"]:
-        arch_suffix = "x86_64"
-    elif system_arch in ["aarch64", "arm64"]:
-        arch_suffix = "aarch64"
-    else:
-        print(f"! Архитектура {system_arch} не поддерживается для AppImage")
-        return
-    
-    safe_print(f"Определена архитектура для AppImage: {system_arch} → {arch_suffix}")
-    
-    # Проверяем существующие инструменты
-    for tool in ["appimagetool", f"appimagetool-{arch_suffix}.AppImage"]:
-        try:
-            run_command(f"which {tool}")
-            appimage_tool = tool
-            break
-        except:
-            continue
-    
-    if not appimage_tool:
-        print(f"AppImageTool не найден. Скачиваю для {arch_suffix}...")
-        try:
-            # Скачиваем appimagetool для нужной архитектуры
-            tool_url = f"https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-{arch_suffix}.AppImage"
-            safe_print(f"📥 Загружаю: {tool_url}")
-            urllib.request.urlretrieve(tool_url, f"appimagetool-{arch_suffix}.AppImage")
-            run_command(f"chmod +x appimagetool-{arch_suffix}.AppImage")
-            appimage_tool = f"./appimagetool-{arch_suffix}.AppImage"
-            safe_print(f"✅ AppImageTool для {arch_suffix} скачан")
-        except Exception as e:
-            print(f"! Не удалось скачать AppImageTool для {arch_suffix}: {e}")
-            # Fallback на x86_64 версию если доступна
-            try:
-                safe_print("🔄 Пробуем fallback на x86_64 версию...")
-                fallback_url = "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
-                urllib.request.urlretrieve(fallback_url, "appimagetool-x86_64.AppImage")
-                run_command("chmod +x appimagetool-x86_64.AppImage")
-                appimage_tool = "./appimagetool-x86_64.AppImage"
-                safe_print("✅ Fallback AppImageTool x86_64 скачан")
-            except Exception as e2:
-                print(f"! Fallback также не сработал: {e2}")
-                return
-    
-    # Создаем структуру AppDir
-    appdir = Path("dist/MetadataCleaner.AppDir")
-    if appdir.exists():
-        shutil.rmtree(appdir)
-    
-    appdir.mkdir()
-    (appdir / "usr").mkdir()
-    (appdir / "usr" / "bin").mkdir()
-    (appdir / "usr" / "share").mkdir()
-    (appdir / "usr" / "share" / "applications").mkdir()
-    (appdir / "usr" / "share" / "icons").mkdir()
-    (appdir / "usr" / "share" / "icons" / "hicolor").mkdir()
-    (appdir / "usr" / "share" / "icons" / "hicolor" / "256x256").mkdir()
-    (appdir / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps").mkdir()
-    
-    # Копируем приложение
-    if Path("dist/MetadataCleaner").is_dir():
-        shutil.copytree("dist/MetadataCleaner", appdir / "usr" / "bin" / "MetadataCleaner")
-    else:
-        shutil.copy2("dist/MetadataCleaner", appdir / "usr" / "bin" / "MetadataCleaner")
-    
-    # Копируем иконку
-    if Path("assets/icons/icon.png").exists():
-        shutil.copy2("assets/icons/icon.png", 
-                    appdir / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps" / "metadata-cleaner.png")
-        shutil.copy2("assets/icons/icon.png", appdir / "metadata-cleaner.png")
-    
-    # Создаем AppRun
-    apprun_content = """#!/bin/bash
-HERE="$(dirname "$(readlink -f "${0}")")"
-EXEC="${HERE}/usr/bin/MetadataCleaner"
-if [ -d "${EXEC}" ]; then
-    exec "${EXEC}/MetadataCleaner" "$@"
-else
-    exec "${EXEC}" "$@"
-fi
-"""
-    
-    apprun_path = appdir / "AppRun"
-    apprun_path.write_text(apprun_content)
-    apprun_path.chmod(0o755)
-    
-    # Создаем .desktop файл
-    desktop_content = """[Desktop Entry]
-Name=Metadata Cleaner
-Comment=Remove metadata from files
-Comment[ru]=Удаление метаданных из файлов
-Exec=MetadataCleaner
-Icon=metadata-cleaner
-Type=Application
-Categories=Utility;Privacy;
-Terminal=false
-StartupWMClass=MetadataCleaner
-"""
-    
-    desktop_path = appdir / "metadata-cleaner.desktop"
-    desktop_path.write_text(desktop_content)
-    
-    # Копируем desktop файл в usr/share/applications
-    shutil.copy2(desktop_path, appdir / "usr" / "share" / "applications" / "metadata-cleaner.desktop")
-    
-    try:
-        # Попробуем создать AppImage с APPIMAGE_EXTRACT_AND_RUN=1 для обхода проблем с FUSE
-        run_command(f"APPIMAGE_EXTRACT_AND_RUN=1 {appimage_tool} {appdir} MetadataCleaner-Linux.AppImage")
-        safe_print("✅ AppImage создан: MetadataCleaner-Linux.AppImage")
-    except Exception as e:
-        print(f"! Ошибка создания AppImage с FUSE: {e}")
-        try:
-            # Альтернативный способ - без FUSE
-            print("Пробуем создать AppImage без FUSE...")
-            run_command(f"{appimage_tool} --appimage-extract-and-run {appdir} MetadataCleaner-Linux.AppImage")
-        except Exception as e2:
-            print(f"! Альтернативный способ также не сработал: {e2}")
-            # Создаем простой tar.gz архив как fallback
-            try:
-                print("Создаю альтернативный Linux архив...")
-                run_command(f"cd dist && tar -czf MetadataCleaner-Linux.tar.gz MetadataCleaner")
-                safe_print("✅ Альтернативный архив создан: dist/MetadataCleaner-Linux.tar.gz")
-                safe_print("💡 Для установки: распакуйте архив и запустите installer_linux.sh")
-            except Exception as e3:
-                print(f"! Не удалось создать даже архив: {e3}")
-
-
-def create_macos_dmg():
-    """Создать DMG для macOS с английской лицензией"""
-    if platform.system() != "Darwin":
-        return
-
-    safe_print("🍎 Создание macOS DMG...")
-    
-    # Проверить наличие create-dmg
-    try:
-        run_command("which create-dmg")
-        safe_print("✅ create-dmg найден")
-    except:
-        safe_print("Устанавливаю create-dmg...")
-        try:
-            run_command("brew install create-dmg")
-            safe_print("✅ create-dmg установлен")
-        except Exception as e:
-            print(f"! Не удалось установить create-dmg: {e}")
-            safe_print("💡 Установите вручную: brew install create-dmg")
-            return
-
-    # Проверяем что приложение собрано
-    app_path = Path("dist/MetadataCleaner.app")
-    if not app_path.exists():
-        safe_print("❌ MetadataCleaner.app не найден в dist/")
-        safe_print("💡 Сначала соберите приложение: python build.py")
-        return
-
-    # Копируем английский файл лицензии
-    license_src = Path("docs/LICENSE_INSTALLER.txt")
-    if license_src.exists():
-        license_dst = Path("dist") / "LICENSE_INSTALLER.txt"
-        shutil.copy(license_src, license_dst)
-        safe_print("✅ Лицензия скопирована")
-    else:
-        safe_print("⚠️  Файл лицензии не найден: docs/LICENSE_INSTALLER.txt")
-
-    # Создаем DMG с улучшенными параметрами
-    safe_print("🔨 Создание DMG...")
-    try:
-        dmg_cmd = """create-dmg \\
-  --volname 'Metadata Cleaner' \\
-  --volicon 'assets/icons/icon.icns' \\
-  --window-pos 200 120 \\
-  --window-size 800 600 \\
-  --icon-size 80 \\
-  --icon 'MetadataCleaner.app' 200 150 \\
-  --icon 'LICENSE_INSTALLER.txt' 200 300 \\
-  --hide-extension 'MetadataCleaner.app' \\
-  --app-drop-link 600 150 \\
-  --text-size 14 \\
-  'MetadataCleaner-macOS.dmg' \\
-  'dist/'"""
+    def build_application(self) -> None:
+        """Build the application with PyInstaller."""
+        logger.info("Building application with PyInstaller...")
         
-        run_command(dmg_cmd)
-        safe_print("✅ macOS DMG создан: MetadataCleaner-macOS.dmg")
+        # Clean previous builds
+        for path in [DIST_DIR, PROJECT_ROOT / "build"]:
+            if path.exists():
+                shutil.rmtree(path)
+                logger.debug(f"Cleaned: {path}")
         
-    except Exception as e:
-        print(f"! Ошибка создания DMG: {e}")
-        safe_print("💡 Попробуйте создать DMG вручную или проверьте права доступа")
-
-
-def test_app():
-    """Проверить что приложение запускается"""
-
-    if platform.system() == "Darwin":
-        app_path = "dist/MetadataCleaner.app/Contents/MacOS/MetadataCleaner"
-    elif platform.system() == "Windows":
-        app_path = "dist/MetadataCleaner/MetadataCleaner.exe"
-    else:
-        app_path = "dist/MetadataCleaner/MetadataCleaner"
-
-    if not Path(app_path).exists():
-        return
+        # Create spec file
+        self.create_spec_file()
+        
+        # Build with PyInstaller
+        spec_file = PROJECT_ROOT / f"{APP_NAME}.spec"
+        cmd = [sys.executable, "-m", "PyInstaller", str(spec_file)]
+        
+        if self.verbose:
+            cmd.append("--log-level=DEBUG")
+        else:
+            cmd.append("--log-level=INFO")
+        
+        self.run_command(cmd, cwd=PROJECT_ROOT)
+        
+        # Verify build
+        self._verify_build()
+        
+        logger.info("Application build completed successfully")
+    
+    def _verify_build(self) -> None:
+        """Verify that the build was successful."""
+        if self.system == "Darwin":
+            app_path = DIST_DIR / f"{APP_NAME}.app"
+            if not app_path.exists():
+                raise BuildError(f"macOS app bundle not created: {app_path}")
+            logger.info(f"macOS app bundle created: {app_path}")
+        else:
+            app_path = DIST_DIR / APP_NAME
+            if not app_path.exists():
+                raise BuildError(f"Application directory not created: {app_path}")
+            
+            # Check for executable
+            exe_name = f"{APP_NAME}.exe" if self.system == "Windows" else APP_NAME
+            exe_path = app_path / exe_name
+            if not exe_path.exists():
+                raise BuildError(f"Application executable not found: {exe_path}")
+            
+            logger.info(f"Application built successfully: {app_path}")
+    
+    def run_tests(self) -> None:
+        """Run basic tests to verify the build."""
+        logger.info("Running build verification tests...")
+        
+        # Test that the application can be imported
+        try:
+            # Add project root to path temporarily
+            sys.path.insert(0, str(PROJECT_ROOT))
+            import metadata_cleaner
+            logger.info(f"Package import successful: {metadata_cleaner.__version__}")
+        except ImportError as e:
+            logger.warning(f"Package import failed: {e}")
+        finally:
+            if str(PROJECT_ROOT) in sys.path:
+                sys.path.remove(str(PROJECT_ROOT))
+        
+        # Platform-specific executable tests
+        if self.system == "Darwin":
+            app_path = DIST_DIR / f"{APP_NAME}.app"
+            exe_path = app_path / "Contents" / "MacOS" / APP_NAME
+        else:
+            app_path = DIST_DIR / APP_NAME
+            exe_name = f"{APP_NAME}.exe" if self.system == "Windows" else APP_NAME
+            exe_path = app_path / exe_name
+        
+        if exe_path.exists():
+            # Test executable exists and has reasonable size
+            size_mb = exe_path.stat().st_size / (1024 * 1024)
+            logger.info(f"Executable size: {size_mb:.1f} MB")
+            
+            if size_mb < 10:
+                logger.warning("Executable seems unusually small")
+            elif size_mb > 500:
+                logger.warning("Executable seems unusually large")
+        
+        logger.info("Build verification completed")
+    
+    def build(self, skip_ffmpeg: bool = False) -> None:
+        """Main build process."""
+        logger.info(f"Starting build for {self.system} {self.machine}")
+        
+        # Check dependencies
+        self.check_dependencies()
+        
+        # Create assets
+        self.create_assets_folder()
+        
+        # Download FFmpeg
+        if not skip_ffmpeg:
+            self.download_ffmpeg()
+        
+        # Build application
+        self.build_application()
+        
+        # Run tests
+        self.run_tests()
+        
+        logger.info("Build process completed successfully!")
 
 
 def main():
-    """Главная функция"""
-
-    # Проверяем платформу и используем соответствующие символы
-    if platform.system() == "Windows":
-        safe_print("Starting Metadata Cleaner build...")
-        safe_print(f"Platform: {platform.system()} {platform.machine()}")
+    """Main entry point."""
+    parser = argparse.ArgumentParser(
+        description="Build script for Metadata Cleaner",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python build.py                    # Standard build
+  python build.py --verbose          # Verbose output
+  python build.py --skip-ffmpeg      # Skip FFmpeg download
+  python build.py --clean            # Clean and build
+        """
+    )
+    
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Enable verbose output"
+    )
+    
+    parser.add_argument(
+        "--skip-ffmpeg",
+        action="store_true",
+        help="Skip FFmpeg download"
+    )
+    
+    parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Clean previous builds first"
+    )
+    
+    args = parser.parse_args()
+    
+    try:
+        # Clean if requested
+        if args.clean:
+            logger.info("Cleaning previous builds...")
+            for path in [DIST_DIR, PROJECT_ROOT / "build"]:
+                if path.exists():
+                    shutil.rmtree(path)
+                    logger.info(f"Cleaned: {path}")
         
-        # Проверить зависимости
-        try:
-            import PyInstaller
-            safe_print("PyInstaller found")
-        except ImportError:
-            safe_print("Installing PyInstaller...")
-            try:
-                run_command("pip install pyinstaller")
-                safe_print("PyInstaller installed")
-            except Exception as e:
-                safe_print(f"Failed to install PyInstaller: {e}")
-                safe_print("Install manually: pip install pyinstaller")
-                return
-
-        # Создать ресурсы
-        safe_print("\nCreating resources...")
-        create_assets_folder()
+        # Create builder and run
+        builder = PlatformBuilder(verbose=args.verbose)
+        builder.build(skip_ffmpeg=args.skip_ffmpeg)
         
-        # Скачать FFmpeg
-        safe_print("\nDownloading FFmpeg...")
-        ffmpeg_dir = download_ffmpeg()
-
-        # Собрать приложение
-        safe_print("\nBuilding application...")
-        try:
-            build_app()
-            safe_print("Application built")
-        except Exception as e:
-            safe_print(f"Build error: {e}")
-            return
-
-        # Тестировать
-        safe_print("\nTesting...")
-        test_app()
-
-        # Создать установщики
-        safe_print("\nCreating installers...")
-        safe_print("Windows: use installer_windows_universal.nsi to create .exe")
-        
-        safe_print("\nBuild completed!")
-        safe_print("Results in dist/ folder")
-    else:
-        # Для macOS и Linux используем эмодзи
-        safe_print("🚀 Запуск сборки Metadata Cleaner...")
-        safe_print(f"🔍 Платформа: {platform.system()} {platform.machine()}")
-        
-        # Проверить зависимости
-        try:
-            import PyInstaller
-            safe_print("PyInstaller найден")
-        except ImportError:
-            safe_print("Устанавливаю PyInstaller...")
-            try:
-                run_command("pip install pyinstaller")
-                safe_print("PyInstaller установлен")
-            except Exception as e:
-                safe_print(f"❌ Не удалось установить PyInstaller: {e}")
-                safe_print("💡 Установите вручную: pip install pyinstaller")
-                return
-
-        # Создать ресурсы
-        safe_print("\n📁 Создание ресурсов...")
-        create_assets_folder()
-        
-        # Скачать FFmpeg
-        safe_print("\n🎬 Скачивание FFmpeg...")
-        ffmpeg_dir = download_ffmpeg()
-
-        # Собрать приложение
-        safe_print("\n🔨 Сборка приложения...")
-        try:
-            build_app()
-            safe_print("Приложение собрано")
-        except Exception as e:
-            safe_print(f"❌ Ошибка сборки: {e}")
-            return
-
-        # Тестировать
-        safe_print("\n🧪 Тестирование...")
-        test_app()
-
-        # Создать установщики
-        safe_print("\nСоздание установщиков...")
-        
-        if platform.system() == "Darwin":
-            create_macos_dmg()
-        elif platform.system() == "Linux":
-            create_linux_appimage()
-        
-        safe_print("\n🎉 Сборка завершена!")
-        safe_print("📁 Результаты в папке dist/")
+    except BuildError as e:
+        logger.error(f"Build failed: {e}")
+        sys.exit(1)
+    except KeyboardInterrupt:
+        logger.info("Build interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}", exc_info=args.verbose)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

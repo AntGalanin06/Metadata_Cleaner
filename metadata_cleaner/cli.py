@@ -63,6 +63,8 @@ def parse_args():
 
     parser.add_argument("--quiet", "-q", action="store_true", help="Тихий режим")
 
+    parser.add_argument("--version", action="version", version="Metadata Cleaner 1.0.1")
+
     return parser.parse_args()
 
 
@@ -139,6 +141,11 @@ def process_files(
 
     if not quiet:
         print(f"\nРезультат: {processed} обработано, {skipped} пропущено, {errors} ошибок")
+    
+    # Возвращаем код ошибки если были ошибки
+    if errors > 0:
+        return 1
+    return 0
 
 
 def main():
@@ -147,7 +154,8 @@ def main():
         args = parse_args()
         options = create_options(args)
 
-        process_files(args.files, options, args.verbose, args.quiet)
+        exit_code = process_files(args.files, options, args.verbose, args.quiet)
+        return exit_code
 
     except KeyboardInterrupt:
         print("\nОперация прервана пользователем")

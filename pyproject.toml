@@ -130,4 +130,32 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "--cov=metadata_cleaner --cov-report=xml --cov-report=term-missing" 
+addopts = [
+    "--cov=metadata_cleaner",
+    "--cov-report=xml",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-branch",
+    "--strict-markers",
+    "--disable-warnings",
+    "-ra"
+]
+markers = [
+    "unit: Unit tests for individual components",
+    "integration: Integration tests between components", 
+    "slow: Slow tests that take significant time to run",
+    "requires_files: Tests that require test files to be present",
+    "video: Tests for video processing (requires ffmpeg)",
+    "gui: Tests for GUI components",
+    "cli: Tests for CLI interface"
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore::UserWarning:flet.*"
+]
+junit_family = "xunit2"
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s [%(levelname)8s] %(name)s: %(message)s"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S" 

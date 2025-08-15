@@ -1,0 +1,239 @@
+name: Release Pipeline
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a new release'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.11'
+  POETRY_VERSION: '1.7.1'
+
+jobs:
+  # Validate Release
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version-check.outputs.version }}
+      tag: ${{ steps.version-check.outputs.tag }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Check version and tag
+      id: version-check
+      run: |
+        if [ "${{ github.event_name }}" = "release" ]; then
+          # Extract version from release tag
+          version="${GITHUB_REF#refs/tags/v}"
+          tag="v${version}"
+        else
+          # Extract version from pyproject.toml
+          version=$(grep -E '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
+          tag="v${version}"
+        fi
+        
+        echo "version=${version}" >> $GITHUB_OUTPUT
+        echo "tag=${tag}" >> $GITHUB_OUTPUT
+        
+        echo "Release version: ${version}"
+        echo "Release tag: ${tag}"
+
+  # Build Application Matrix
+  build-matrix:
+    name: Build Application (${{ matrix.config.platform }})
+    runs-on: ${{ matrix.config.os }}
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: windows
+          - os: macos-latest
+            platform: macos
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+    
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: ${{ env.POETRY_VERSION }}
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+    
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v3
+      with:
+        path: .venv
+        key: venv-${{ matrix.config.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
+    
+    - name: Install dependencies
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: poetry install
+    
+    - name: Install system dependencies (Ubuntu)
+      if: matrix.config.platform == 'linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-3-dev dpkg-deb rpm
+    
+    - name: Install system dependencies (Windows)
+      if: matrix.config.platform == 'windows'
+      run: |
+        choco install nsis
+    
+    - name: Install system dependencies (macOS)
+      if: matrix.config.platform == 'macos'
+      run: |
+        brew install create-dmg
+    
+    - name: Build application
+      run: |
+        poetry run python build.py --verbose
+    
+    - name: Verify build artifacts
+      run: |
+        echo "=== Build Artifacts ==="
+        ls -la dist/
+        echo ""
+        echo "=== File Details ==="
+        if [ "${{ matrix.config.platform }}" = "linux" ]; then
+          file dist/MetadataCleaner
+          du -h dist/MetadataCleaner
+        elif [ "${{ matrix.config.platform }}" = "windows" ]; then
+          file dist/MetadataCleaner.exe
+          du -h dist/MetadataCleaner.exe
+        elif [ "${{ matrix.config.platform }}" = "macos" ]; then
+          ls -la dist/MetadataCleaner.app/Contents/MacOS/
+          du -h dist/MetadataCleaner.app
+        fi
+    
+    - name: Create installers
+      run: |
+        chmod +x installers/build_all.sh
+        ./installers/build_all.sh ${{ matrix.config.platform }}
+    
+    - name: Verify installers
+      run: |
+        echo "=== Installers Created ==="
+        ls -la dist/*.AppImage dist/*.deb dist/*.rpm dist/*.exe dist/*.dmg 2>/dev/null || true
+        echo ""
+        echo "=== Installer Details ==="
+        for file in dist/*.AppImage dist/*.deb dist/*.rpm dist/*.exe dist/*.dmg 2>/dev/null; do
+          if [ -f "$file" ]; then
+            echo "File: $file"
+            file "$file"
+            du -h "$file"
+            echo ""
+          fi
+        done
+    
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-${{ matrix.config.platform }}
+        path: dist/
+        retention-days: 90
+        compression-level: 6
+
+  # Create Release
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [validate, build-matrix]
+    if: github.event_name == 'release' || github.event.inputs.create_release == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts/
+    
+    - name: Organize release files
+      run: |
+        mkdir -p release-files
+        
+        # Copy all installers to release-files
+        find artifacts/ -name "*.AppImage" -exec cp {} release-files/ \;
+        find artifacts/ -name "*.deb" -exec cp {} release-files/ \;
+        find artifacts/ -name "*.rpm" -exec cp {} release-files/ \;
+        find artifacts/ -name "*.exe" -exec cp {} release-files/ \;
+        find artifacts/ -name "*.dmg" -exec cp {} release-files/ \;
+        
+        echo "=== Release Files ==="
+        ls -la release-files/
+        echo ""
+        echo "=== File Count ==="
+        echo "Total installers: $(ls release-files/ | wc -l)"
+        echo ""
+        echo "=== File Details ==="
+        for file in release-files/*; do
+          if [ -f "$file" ]; then
+            echo "File: $(basename "$file")"
+            file "$file"
+            du -h "$file"
+            echo ""
+          fi
+        done
+    
+    - name: Generate release notes
+      run: |
+        # Read the release template
+        template_content=$(cat docs/RELEASE_TEMPLATE.md)
+        
+        # Replace version placeholder
+        release_notes="${template_content//\{VERSION\}/${{ needs.validate.outputs.version }}}"
+        
+        # Save to file
+        echo "$release_notes" > release-files/RELEASE_NOTES.md
+        
+        echo "Release notes generated for version ${{ needs.validate.outputs.version }}"
+    
+    - name: Create/Update Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ needs.validate.outputs.tag }}
+        name: "Metadata Cleaner ${{ needs.validate.outputs.version }}"
+        body_path: release-files/RELEASE_NOTES.md
+        files: release-files/*
+        draft: false
+        prerelease: false
+        generate_release_notes: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Show release summary
+      run: |
+        echo "🎉 Release ${{ needs.validate.outputs.tag }} created successfully!"
+        echo ""
+        echo "📦 Installers included:"
+        ls -la release-files/
+        echo ""
+        echo "🔗 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate.outputs.tag }}"
