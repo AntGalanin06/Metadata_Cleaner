@@ -3,6 +3,8 @@
 import pytest
 import tempfile
 import shutil
+import time
+import logging
 from pathlib import Path
 from unittest.mock import Mock
 from typing import Generator, Dict, Any
@@ -23,8 +25,6 @@ def temp_dir() -> Generator[Path, None, None]:
         yield temp_path
     finally:
         # Очистка временной директории с обработкой заблокированных файлов
-        import time
-
         for attempt in range(max_cleanup_attempts):
             try:
                 shutil.rmtree(temp_path)
@@ -144,8 +144,6 @@ def cleanup_logs():
     """Автоматическая очистка логов после тестов."""
     yield
     # Очистка логгеров если необходимо
-    import logging
-
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
 

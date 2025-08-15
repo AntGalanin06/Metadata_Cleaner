@@ -1,12 +1,18 @@
 """Тесты для CLI интерфейса."""
 
 import pytest
+import subprocess
 from unittest.mock import patch
 import sys
 from pathlib import Path
 import tempfile
 
 from metadata_cleaner.cli import main
+from metadata_cleaner.cleaner.models import (
+    CleanStatus,
+    CleanResult,
+    FileJob,
+)
 
 
 @pytest.mark.unit
@@ -64,12 +70,6 @@ class TestCLI:
                 # Мокаем методы как они используются в CLI
                 mock_dispatcher.is_supported.return_value = True
 
-                from metadata_cleaner.cleaner.models import (
-                    CleanStatus,
-                    CleanResult,
-                    FileJob,
-                )
-
                 # Создаем успешный результат
                 job = FileJob(file_path=Path(str(temp_path)))
                 mock_result = CleanResult(
@@ -92,8 +92,6 @@ class TestCLIIntegration:
 
     def test_cli_integration_help(self):
         """Интеграционный тест справки."""
-        import subprocess
-
         result = subprocess.run(  # noqa: S603
             [
                 sys.executable,
@@ -110,8 +108,6 @@ class TestCLIIntegration:
 
     def test_cli_error_handling(self):
         """Тест обработки ошибок CLI."""
-        import subprocess
-
         result = subprocess.run(  # noqa: S603
             [
                 sys.executable,

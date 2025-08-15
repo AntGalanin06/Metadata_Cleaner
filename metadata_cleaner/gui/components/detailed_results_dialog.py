@@ -470,7 +470,7 @@ class DetailedResultsDialog(ft.UserControl):
 
     def _get_category_style(self, category) -> tuple[str, str]:
         """Получить цвет и иконку для категории метаданных."""
-        from metadata_cleaner.cleaner.metadata_registry import MetadataCategory
+        from metadata_cleaner.cleaner.metadata_registry import MetadataCategory  # noqa: PLC0415
 
         category_styles = {
             MetadataCategory.AUTHOR: (ft.colors.PURPLE_700, ft.icons.PERSON),

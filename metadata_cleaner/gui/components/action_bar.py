@@ -118,7 +118,7 @@ class ActionBar(ft.UserControl):
 
     def show_success_animation(self):
         """Показать анимацию успеха"""
-        import threading
+        import threading  # noqa: PLC0415
 
         original_text = self.clean_btn.text
         original_icon = self.clean_btn.icon

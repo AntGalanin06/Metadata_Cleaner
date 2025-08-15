@@ -624,10 +624,10 @@ class MetadataCleanerApp:
         # Автозакрытие приложения если включено в настройках
         if self.settings.get_auto_close_after_completion():
             # Задержка 3 секунды чтобы пользователь видел результат
-            import threading
+            import threading  # noqa: PLC0415
 
             def auto_close():
-                import time
+                import time  # noqa: PLC0415
 
                 time.sleep(3.0)
                 if hasattr(self.page, "window_close"):
