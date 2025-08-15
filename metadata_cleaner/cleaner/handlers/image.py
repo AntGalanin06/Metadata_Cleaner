@@ -178,7 +178,10 @@ class ImageHandler(BaseHandler):
                         user_comment = exif_ifd[piexif.ExifIFD.UserComment]
                         # UserComment начинается с 8-байтного заголовка кодировки
                         EXIF_USER_COMMENT_HEADER_SIZE = 8
-                        if isinstance(user_comment, bytes) and len(user_comment) > EXIF_USER_COMMENT_HEADER_SIZE:
+                        if (
+                            isinstance(user_comment, bytes)
+                            and len(user_comment) > EXIF_USER_COMMENT_HEADER_SIZE
+                        ):
                             try:
                                 cleaned_fields["user_comment"] = user_comment[
                                     EXIF_USER_COMMENT_HEADER_SIZE:
