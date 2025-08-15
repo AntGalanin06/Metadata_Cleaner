@@ -116,8 +116,12 @@ build_application() {
         exit 1
     fi
     
-    # Run build script
-    python build.py
+    # Run build script with Poetry
+    if command -v poetry >/dev/null 2>&1; then
+        poetry run python build.py
+    else
+        python build.py
+    fi
     
     # Verify build output
     if [[ ! -d "dist" ]]; then
