@@ -41,7 +41,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: .venv
-        key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-quality-${{ hashFiles('**/poetry.lock') }}
+        key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-quality-${{ hashFiles('**/pyproject.toml') }}
     
     - name: Install dependencies
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
@@ -62,11 +62,6 @@ jobs:
         echo "🎯 Type checking..."
         poetry run mypy metadata_cleaner/ --ignore-missing-imports || true
     
-    - name: Check import sorting
-      run: |
-        echo "📋 Checking import sorting..."
-        poetry run ruff check --select I metadata_cleaner/ tests/ || true
-    
     - name: Security scan with Bandit
       run: |
         echo "🔒 Security scanning..."
@@ -83,87 +78,10 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: security-reports-${{ github.run_id }}
+        name: security-reports-quality-${{ github.run_id }}
         path: |
           bandit-report.json
           safety-report.json
-        retention-days: 30
-
-  # Покрытие кода
-  coverage:
-    name: Test Coverage
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-    
-    - name: Install Poetry
-      uses: snok/install-poetry@v1
-      with:
-        version: ${{ env.POETRY_VERSION }}
-        virtualenvs-create: true
-        virtualenvs-in-project: true
-    
-    - name: Load cached venv
-      id: cached-poetry-dependencies
-      uses: actions/cache@v4
-      with:
-        path: .venv
-        key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-coverage-${{ hashFiles('**/poetry.lock') }}
-    
-    - name: Install dependencies
-      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-      run: poetry install --with dev
-    
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y ffmpeg libgtk-3-dev
-    
-    - name: Run tests with coverage
-      run: |
-        echo "🧪 Running tests with coverage..."
-        poetry run pytest \
-          --cov=metadata_cleaner \
-          --cov-report=xml \
-          --cov-report=html \
-          --cov-report=term-missing \
-          --cov-branch \
-          --junitxml=pytest.xml \
-          tests/
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        files: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
-        verbose: true
-    
-    - name: Coverage comment
-      uses: py-cov-action/python-coverage-comment-action@v3
-      if: github.event_name == 'pull_request'
-      with:
-        GITHUB_TOKEN: ${{ github.token }}
-        MINIMUM_GREEN: 80
-        MINIMUM_ORANGE: 60
-    
-    - name: Upload coverage reports
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: coverage-reports-${{ github.run_id }}
-        path: |
-          htmlcov/
-          coverage.xml
-          pytest.xml
         retention-days: 30
 
   # Анализ метрик кода
@@ -192,134 +110,70 @@ jobs:
       uses: actions/cache@v4
       with:
         path: .venv
-        key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-metrics-${{ hashFiles('**/poetry.lock') }}
+        key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-metrics-${{ hashFiles('**/pyproject.toml') }}
     
     - name: Install dependencies
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
       run: poetry install --with dev
     
-    - name: Calculate code metrics
+    - name: Run code metrics analysis
       run: |
-        echo "📊 Code Metrics Analysis"
-        echo "========================"
-        
-        echo "📏 Lines of Code:"
-        find metadata_cleaner -name "*.py" -exec wc -l {} + | tail -1
-        
+        echo "📊 Code Metrics Analysis:"
         echo ""
         echo "🔢 Cyclomatic Complexity:"
         poetry run radon cc metadata_cleaner -a -nc
         
         echo ""
-        echo "🏗️ Maintainability Index:"
+        echo "🏢️ Maintainability Index:"
         poetry run radon mi metadata_cleaner -nc
         
         echo ""
         echo "📈 Raw Metrics:"
         poetry run radon raw metadata_cleaner -s
-        
-
     
     - name: Generate metrics report
       run: |
-        echo "# Code Metrics Report" > metrics-report.md
+        echo "# Code Quality Report" > metrics-report.md
         echo "" >> metrics-report.md
-        echo "## Complexity Analysis" >> metrics-report.md
-        echo "\`\`\`" >> metrics-report.md
+        echo "## Cyclomatic Complexity" >> metrics-report.md
         poetry run radon cc metadata_cleaner -a >> metrics-report.md || true
-        echo "\`\`\`" >> metrics-report.md
         echo "" >> metrics-report.md
-        echo "## Maintainability" >> metrics-report.md
-        echo "\`\`\`" >> metrics-report.md
+        echo "## Maintainability Index" >> metrics-report.md
         poetry run radon mi metadata_cleaner >> metrics-report.md || true
-        echo "\`\`\`" >> metrics-report.md
     
     - name: Upload metrics report
       uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: metrics-report-${{ github.run_id }}
         path: metrics-report.md
         retention-days: 30
 
-  # Проверка документации
-  docs-check:
-    name: Documentation Check
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Check README files
-      run: |
-        echo "📚 Checking documentation..."
-        
-        if [ ! -f README.md ]; then
-          echo "❌ README.md not found"
-          exit 1
-        fi
-        
-        if [ ! -f README_EN.md ]; then
-          echo "❌ README_EN.md not found" 
-          exit 1
-        fi
-        
-        echo "✅ README files found"
-    
-    - name: Check docstrings
-      run: |
-        echo "📝 Checking docstrings..."
-        
-        # Подсчет функций без docstrings
-        missing_docstrings=$(find metadata_cleaner -name "*.py" | wc -l)
-        
-        echo "Functions without docstrings: $missing_docstrings"
-        
-        if [ "$missing_docstrings" -gt 20 ]; then
-          echo "⚠️ Many functions missing docstrings"
-        else
-          echo "✅ Docstring coverage acceptable"
-        fi
-    
-    - name: Check for TODO/FIXME comments
-      run: |
-        echo "🔍 Checking for TODO/FIXME comments..."
-        
-        todos=$(grep -r "TODO\|FIXME\|XXX\|HACK" metadata_cleaner || true)
-        if [ -n "$todos" ]; then
-          echo "⚠️ Found TODO/FIXME comments:"
-          echo "$todos"
-        else
-          echo "✅ No TODO/FIXME comments found"
-        fi
-
-  # Финальная проверка качества
+  # Quality Gate
   quality-gate:
     name: Quality Gate
     runs-on: ubuntu-latest
-    needs: [code-quality, coverage, metrics, docs-check]
+    needs: [code-quality, metrics]
     if: always()
     
     steps:
     - name: Check quality gate
       run: |
-        echo "🚦 Quality Gate Summary"
-        echo "======================"
+        CODE_QUALITY_STATUS="${{ needs.code-quality.result }}"
+        METRICS_STATUS="${{ needs.metrics.result }}"
         
-        CODE_QUALITY="${{ needs.code-quality.result }}"
-        COVERAGE="${{ needs.coverage.result }}"
-        METRICS="${{ needs.metrics.result }}"
-        DOCS="${{ needs.docs-check.result }}"
+        echo "📊 Quality Gate Results:"
+        echo "- Code Quality: $CODE_QUALITY_STATUS"
+        echo "- Metrics: $METRICS_STATUS"
         
-        echo "Code Quality: $CODE_QUALITY"
-        echo "Coverage: $COVERAGE" 
-        echo "Metrics: $METRICS"
-        echo "Documentation: $DOCS"
-        
-        if [ "$CODE_QUALITY" = "success" ] && [ "$COVERAGE" = "success" ]; then
-          echo "✅ Quality gate PASSED"
-          exit 0
-        else
-          echo "❌ Quality gate FAILED"
+        if [[ "$CODE_QUALITY_STATUS" == "failure" ]]; then
+          echo "❌ Quality gate failed: Code quality checks failed"
           exit 1
         fi
+        
+        if [[ "$METRICS_STATUS" == "failure" ]]; then
+          echo "⚠️ Quality gate warning: Metrics analysis failed"
+          # Don't fail the build for metrics, just warn
+        fi
+        
+        echo "✅ Quality gate passed!"

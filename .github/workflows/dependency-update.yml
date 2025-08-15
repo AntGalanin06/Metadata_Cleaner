@@ -55,10 +55,11 @@ jobs:
         CURRENT_LOCK_HASH=$(sha256sum poetry.lock | cut -d' ' -f1)
         
         # Check for updates without actually updating
-        poetry show --outdated --format=json > outdated-deps.json || echo "[]" > outdated-deps.json
+        poetry show --outdated > outdated-deps.txt || echo "No outdated dependencies" > outdated-deps.txt
+        echo "[]" > outdated-deps.json
         
         # Count outdated packages
-        OUTDATED_COUNT=$(cat outdated-deps.json | jq '. | length')
+        OUTDATED_COUNT=$(grep -c "^\s*[a-zA-Z]" outdated-deps.txt || echo "0")
         
         if [ "$OUTDATED_COUNT" -gt 0 ]; then
           echo "📊 Found $OUTDATED_COUNT outdated dependencies"
@@ -69,7 +70,7 @@ jobs:
           echo "" >> update-summary.md
           
           # Parse outdated dependencies
-          cat outdated-deps.json | jq -r '.[] | "- **\(.name)**: \(.version) → \(.latest) (\(.description // "No description"))"' >> update-summary.md || true
+          echo "See outdated-deps.txt for details" >> update-summary.md
           
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           cat update-summary.md >> $GITHUB_OUTPUT
@@ -86,6 +87,7 @@ jobs:
       with:
         name: dependency-analysis-${{ github.run_id }}
         path: |
+          outdated-deps.txt
           outdated-deps.json
           update-summary.md
         retention-days: 7
@@ -197,7 +199,7 @@ jobs:
         echo "" >> update-report.md
         
         # Show what changed
-        poetry show --latest --format=json > current-deps.json
+        poetry show --latest > current-deps.txt
         echo "Dependencies have been updated. See artifacts for detailed changes." >> update-report.md
         
         echo "" >> update-report.md
@@ -256,7 +258,7 @@ jobs:
         name: dependency-update-artifacts-${{ github.run_id }}
         path: |
           update-report.md
-          current-deps.json
+          current-deps.txt
           poetry.lock.backup
         retention-days: 30
 

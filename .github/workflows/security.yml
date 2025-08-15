@@ -104,14 +104,13 @@ jobs:
     - name: Run Bandit security linter
       run: |
         echo "🔒 Running Bandit security analysis..."
-        poetry run pip install bandit[toml]
         poetry run bandit -r metadata_cleaner/ -f json -o bandit-report.json || true
         poetry run bandit -r metadata_cleaner/ -ll --severity-level medium || true
     
     - name: Run Semgrep static analysis
       run: |
         echo "🔎 Running Semgrep static analysis..."
-        pip install semgrep
+        python -m pip install semgrep
         semgrep --config=auto --json --output=semgrep-report.json metadata_cleaner/ || true
         semgrep --config=auto metadata_cleaner/ || true
     
@@ -139,12 +138,13 @@ jobs:
     - name: Run TruffleHog secrets scan
       run: |
         echo "🔐 Scanning for secrets and sensitive information..."
-        docker run --rm -v "$PWD:/pwd" trufflesecurity/trufflehog:latest filesystem /pwd --json > trufflehog-report.json || true
+        # Use TruffleHog Docker image with proper volume mounting
+        docker run --rm -v "${{ github.workspace }}:/pwd" trufflesecurity/trufflehog:latest filesystem /pwd --json > trufflehog-report.json || true
         
         # Show results (but don't fail the build for backwards compatibility)
         if [ -s trufflehog-report.json ]; then
           echo "⚠️ TruffleHog found potential secrets:"
-          cat trufflehog-report.json | jq -r '.SourceMetadata.Data.Filesystem.file' | sort -u || true
+          cat trufflehog-report.json | jq -r '.SourceMetadata.Data.Filesystem.file' 2>/dev/null | sort -u || echo "Could not parse TruffleHog output"
         else
           echo "✅ No secrets detected by TruffleHog"
         fi
