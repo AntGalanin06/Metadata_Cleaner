@@ -110,7 +110,7 @@ class VideoHandler(BaseHandler):
             for path in ffmpeg_paths:
                 try:
                     result = subprocess.run(
-                        [path, "-version"], capture_output=True, text=True, timeout=5
+                        [path, "-version"], capture_output=True, text=True, timeout=5, check=False
                     )
                     if result.returncode == 0:
                         ffmpeg_cmd = path
@@ -141,7 +141,7 @@ class VideoHandler(BaseHandler):
 
             # Выполняем команду
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=300  # 5 минут максимум
+                cmd, capture_output=True, text=True, timeout=300, check=False  # 5 минут максимум
             )
 
             if result.returncode == 0:
@@ -207,7 +207,7 @@ class VideoHandler(BaseHandler):
         for path in ffmpeg_paths:
             try:
                 result = subprocess.run(
-                    [path, "-version"], capture_output=True, text=True, timeout=5
+                    [path, "-version"], capture_output=True, text=True, timeout=5, check=False
                 )
                 if result.returncode == 0:
                     return True

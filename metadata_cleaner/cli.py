@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .cleaner import MetadataDispatcher
 from .cleaner.models import CleaningOptions
+from .services.settings_service import SettingsService
 
 
 def parse_args():
@@ -91,8 +92,6 @@ def process_files(
     quiet: bool = False,
 ):
     """Обработка списка файлов."""
-    from .services.settings_service import SettingsService
-
     settings_service = SettingsService()
     dispatcher = MetadataDispatcher(settings_service)
 

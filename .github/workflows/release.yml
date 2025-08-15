@@ -84,6 +84,10 @@ jobs:
         virtualenvs-create: true
         virtualenvs-in-project: true
     
+    - name: Add Poetry to PATH (Windows)
+      if: matrix.config.platform == 'windows'
+      run: echo "$env:USERPROFILE\.local\bin" >> $env:GITHUB_PATH
+    
     - name: Load cached venv
       id: cached-poetry-dependencies
       uses: actions/cache@v4

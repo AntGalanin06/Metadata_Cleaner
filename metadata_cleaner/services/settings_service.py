@@ -10,6 +10,11 @@ from typing import Any
 from metadata_cleaner.cleaner.models import OutputMode
 from metadata_cleaner.cleaner.metadata_registry import MetadataRegistry
 
+try:
+    import flet as ft
+except ImportError:
+    ft = None
+
 
 class SettingsService:
     """Сервис для управления настройками приложения"""
@@ -116,7 +121,8 @@ class SettingsService:
 
     def get_theme_mode(self):
         """Получить объект ThemeMode для Flet"""
-        import flet as ft
+        if ft is None:
+            return None
 
         theme = self.get_theme()
         if theme == "light":
@@ -171,13 +177,7 @@ class SettingsService:
     def get_window_maximized(self) -> bool:
         return self._settings.get("window_maximized", False)
 
-    def get_show_notifications(self) -> bool:
-        """Получить настройку показа уведомлений"""
-        return self._settings.get("show_notifications", True)
-
-    def get_auto_close_after_completion(self) -> bool:
-        """Получить настройку автозакрытия после завершения"""
-        return self._settings.get("auto_close_after_completion", False)
+    # Эти методы уже определены выше
 
     # Сеттеры для основных настроек
     def update_theme(self, theme: str):
