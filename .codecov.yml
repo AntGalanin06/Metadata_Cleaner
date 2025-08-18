@@ -1,0 +1,46 @@
+# Codecov configuration file
+# https://docs.codecov.io/docs/codecov-yaml
+
+coverage:
+  precision: 2
+  round: down
+  range: "80...100"
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 5%
+    patch:
+      default:
+        target: 80%
+        threshold: 5%
+
+parsers:
+  gcov:
+    branch_detection:
+      conditional: yes
+      loop: yes
+      method: no
+      macro: no
+
+comment:
+  layout: "reach,diff,flags,files,footer"
+  behavior: default
+  require_changes: false
+
+ignore:
+  - "tests/"
+  - "test_"
+  - "*/tests/*"
+  - "*/test_*"
+  - "*/venv/*"
+  - "*/.venv/*"
+  - "*/virtualenv/*"
+  - "*/site-packages/*"
+  - "*/__pycache__/*"
+  - "*/migrations/*"
+  - "*/examples/*"
+  - "build.py"
+  - "setup.py"
+  - "*/run.py"
+  - "*/.tox/*"

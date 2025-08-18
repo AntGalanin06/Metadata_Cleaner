@@ -6,7 +6,7 @@
 *Фотографии, документы, PDF и видео — всё обрабатывается локально на вашем компьютере*
 
 <p align="center">
-  <a href="https://github.com/AntGalanin06/Metadata_Cleaner/actions/workflows/tests.yml"><img src="https://github.com/AntGalanin06/Metadata_Cleaner/actions/workflows/tests.yml/badge.svg" alt="Tests"/></a>
+  <a href="https://github.com/AntGalanin06/Metadata_Cleaner/actions/workflows/ci.yml"><img src="https://github.com/AntGalanin06/Metadata_Cleaner/actions/workflows/ci.yml/badge.svg" alt="Tests"/></a>
   <a href="https://codecov.io/gh/AntGalanin06/Metadata_Cleaner"><img src="https://codecov.io/gh/AntGalanin06/Metadata_Cleaner/graph/badge.svg" alt="Coverage"/></a>
   <a href="https://github.com/AntGalanin06/Metadata_Cleaner/releases/latest"><img src="https://img.shields.io/github/v/release/AntGalanin06/Metadata_Cleaner?label=latest%20release" alt="Latest Release"/></a>
   <a href="https://github.com/AntGalanin06/Metadata_Cleaner/stargazers"><img src="https://img.shields.io/github/stars/AntGalanin06/Metadata_Cleaner?style=social" alt="GitHub Stars"/></a>
@@ -42,7 +42,7 @@
 
 <table>
 <tr>
-<td width="50%">
+<td width="33%">
 
 ### ⚙️ **Гибкие настройки**
 
@@ -54,7 +54,7 @@
 - **Профили очистки метаданных**
 
 </td>
-<td width="50%">
+<td width="33%">
 
 ### ℹ️ **О приложении**
 
@@ -64,6 +64,18 @@
 - **Ссылки на документацию** и поддержку
 - **Поддерживаемые форматы** файлов
 - **Контакты разработчика** и обратная связь
+
+</td>
+<td width="33%">
+
+### 📊 **Детальные результаты**
+
+<img src="assets/screenshots/detailed-results-dialog.png" alt="Детальные результаты" width="100%">
+
+- **Подробная статистика** по каждому файлу
+- **Список удаленных метаданных** с описанием
+- **Статус обработки** каждого файла
+- **Информация о результатах** очистки
 
 </td>
 </tr>
@@ -108,33 +120,54 @@
 
 ## 🚀 Установка
 
-<table align="center">
+### Windows
+<table>
+<tr>
+<td align="center" width="100%">
+
+**[<img src="https://img.icons8.com/color/48/000000/windows-10.png" width="16" height="16" style="vertical-align: -2px;"> Скачать EXE](https://github.com/AntGalanin06/Metadata_Cleaner/releases/latest/download/MetadataCleaner-Windows-x64.exe)**
+
+`Windows 10+ (Intel/AMD)`
+
+</td>
+</tr>
+</table>
+
+### macOS
+<table>
+<tr>
+<td align="center" width="100%">
+
+**[<img src="https://img.icons8.com/color/48/000000/mac-os.png" width="16" height="16" style="vertical-align: -2px;"> Скачать DMG](https://github.com/AntGalanin06/Metadata_Cleaner/releases/latest/download/MetadataCleaner-macOS.dmg)**
+
+`macOS 10.15+ (Intel + Apple Silicon)`
+
+</td>
+</tr>
+</table>
+
+### Linux
+<table>
 <tr>
 <td align="center" width="33%">
 
-<img src="https://img.icons8.com/color/48/000000/windows-10.png" width="64">
+**[<img src="https://img.icons8.com/color/48/000000/ubuntu.png" width="16" height="16" style="vertical-align: -2px;"><img src="https://img.icons8.com/color/48/000000/debian.png" width="16" height="16" style="vertical-align: -2px;"> Скачать DEB](https://github.com/AntGalanin06/Metadata_Cleaner/releases/latest/download/MetadataCleaner-Linux-amd64.deb)**
 
-**[📥 Скачать EXE](https://github.com/AntGalanin06/Metadata_Cleaner/releases/latest/download/MetadataCleaner-Windows.exe)**
-
-`Windows 10+ (64-bit)`
+`Ubuntu/Debian`
 
 </td>
 <td align="center" width="33%">
 
-<img src="https://img.icons8.com/ios-filled/50/000000/mac-os.png" width="64">
+**[<img src="https://img.icons8.com/color/48/000000/red-hat.png" width="16" height="16" style="vertical-align: -2px;"><img src="https://img.icons8.com/color/48/000000/centos.png" width="16" height="16" style="vertical-align: -2px;"><img src="https://img.icons8.com/?size=100&id=ZbBhBW0N2q3D&format=png&color=000000" width="16" height="16" style="vertical-align: -2px;"> Скачать RPM](https://github.com/AntGalanin06/Metadata_Cleaner/releases/latest/download/MetadataCleaner-Linux-x86_64.rpm)**
 
-**[📥 Скачать DMG](https://github.com/AntGalanin06/Metadata_Cleaner/releases/latest/download/MetadataCleaner-macOS.dmg)**
-
-`macOS 10.15+`
+`RHEL/CentOS/Fedora`
 
 </td>
 <td align="center" width="33%">
 
-<img src="https://img.icons8.com/color/48/000000/linux.png" width="64">
+**[<img src="https://img.icons8.com/color/48/000000/linux.png" width="16" height="16" style="vertical-align: -2px;"> Скачать AppImage](https://github.com/AntGalanin06/Metadata_Cleaner/releases/latest/download/MetadataCleaner-Linux-x64.AppImage)**
 
-**[📥 Скачать AppImage](https://github.com/AntGalanin06/Metadata_Cleaner/releases/latest/download/MetadataCleaner-Linux.AppImage)**
-
-`Ubuntu 18.04+`
+`Универсальный`
 
 </td>
 </tr>
