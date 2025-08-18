@@ -1,0 +1,221 @@
+[tool.poetry]
+name = "metadata-cleaner"
+version = "1.0.1"
+description = "Современное приложение для безопасного удаления метаданных из различных типов файлов"
+authors = ["AntGalanin06 <antgalanin06@example.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/AntGalanin06/Metadata_Cleaner"
+repository = "https://github.com/AntGalanin06/Metadata_Cleaner"
+documentation = "https://github.com/AntGalanin06/Metadata_Cleaner/blob/main/README.md"
+keywords = ["metadata", "privacy", "exif", "cleaner", "security"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: X11 Applications",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Security",
+    "Topic :: Utilities",
+]
+packages = [{include = "metadata_cleaner"}]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.14"
+flet = "^0.24.0"
+python-docx = "^1.1.0"
+python-pptx = "^0.6.23" 
+openpyxl = "^3.1.0"
+pypdf = "^6.0.0"
+pillow = "^10.0.0"
+piexif = "^1.1.3"
+pydantic = "^2.5.0"
+hachoir = "^3.2.0"
+pillow-heif = "^0.16.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-cov = "^4.1.0"
+ruff = "^0.1.0"
+black = "^24.3.0"
+pre-commit = "^3.5.0"
+mypy = "^1.5.0"
+bandit = {extras = ["toml"], version = "^1.7.5"}
+safety = "^2.3.4"
+psutil = "^5.9.0"
+radon = "^5.1.0"
+pip-audit = "^2.6.0"
+reportlab = "^4.4.3"
+semgrep = "^1.120.0"
+
+[tool.poetry.scripts]
+metadata-cleaner = "metadata_cleaner.gui.app:main"
+metadata-cleaner-cli = "metadata_cleaner.cli:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "S", "B", "A", "C", "DTZ", "T", "SIM", "ARG", "PTH", "PL", "TRY", "FBT", "Q"]
+ignore = [
+    "RUF001",  # ambiguous-unicode-character-string (кириллица в строках)
+    "RUF002",  # ambiguous-unicode-character-docstring (кириллица в docstring)
+    "RUF003",  # ambiguous-unicode-character-comment (кириллица в комментариях)
+    "T201",    # print statements (нужны для CLI)
+    "C901",    # too-complex (сложные функции)
+    "PLR0912", # too-many-branches
+    "PLR0915", # too-many-statements
+    "PLR0913", # too-many-arguments
+    "BLE001",  # blind-except (catch Exception)
+    "TRY003",  # raise-vanilla-args
+    "TRY301",  # raise-within-try
+    "EM101",   # raw-string-in-exception
+    "EM102",   # f-string-in-exception
+    "TRY200",  # reraise-no-cause
+    "B904",    # raise-without-from-inside-except
+    "EXE001",  # shebang-not-executable
+    "FBT001",  # boolean-type-hint-positional-argument
+    "FBT002",  # boolean-default-positional-argument
+    "FBT003",  # boolean-positional-value-in-call
+    "ARG001",  # unused-function-argument
+    "ARG002",  # unused-method-argument
+    "ARG005",  # unused-lambda-argument
+    "SIM102",  # collapsible-if
+    "SIM114",  # if-with-same-arms
+    "RET505",  # superfluous-else-return
+    "PLR5501", # collapsible-else-if
+    "TRY300",  # try-consider-else
+    "DTZ005",  # datetime-now-without-tzinfo
+    "E722",    # bare-except
+    "TCH003",  # typing-only-third-party-import
+    "UP006",   # non-pep585-annotation
+    "UP007",   # non-pep604-annotation
+    "UP015",   # redundant-open-modes
+    "UP035",   # deprecated-import
+    "UP037",   # quoted-annotation
+    "PTH123",  # builtin-open
+    "Q000",    # bad-quotes-inline-string
+    "I001",    # unsorted-imports
+    "W291",    # trailing-whitespace
+    "W292",    # no-newline-at-end-of-file
+    "W293",    # blank-line-with-whitespace
+    "TID252",  # relative-imports
+    "E501",    # line-too-long (будем исправлять постепенно)
+    "E402",    # module-level-import-not-at-top-of-file
+    "F401",    # unused-import
+    "F841",    # unused-variable
+    "B018",    # useless-expression
+    "S101",    # assert
+    "S110",    # try-except-pass
+    "S602",    # subprocess-popen-with-shell-equals-true
+    "S607",    # start-process-with-partial-path
+    "TRY002",  # raise-vanilla-class
+    "B007",    # unused-loop-control-variable
+    "SIM117",  # combine-with-statements
+    "SIM118",  # use-dict-get-default
+    "PLW1510", # subprocess-run-without-check
+    "S603",    # subprocess-call-check-for-execution-of-untrusted-input
+    "S310",    # suspicious-url-open-usage
+    "TRY400",  # use-logging-exception
+    "PLR2004", # magic-value-used-in-comparison
+    "N806",    # non-lowercase-variable-in-function
+    "B009",    # do-not-call-getattr-with-constant
+    "UP009",   # utf8-encoding-declaration-unnecessary
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]  # разрешить assert в тестах
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.black]
+target-version = ["py311"]
+line-length = 88
+
+[tool.bandit]
+exclude_dirs = ["tests", "test_*", "htmlcov", ".venv", "venv", "__pycache__", ".git", ".pytest_cache", ".mypy_cache", ".ruff_cache"]
+exclude = ["*/test_*.py", "*/tests/*", "*/conftest.py"]
+skips = ["B101", "B601", "B602", "B603", "B604", "B605", "B606", "B607", "B608", "B609", "B701", "B702", "B703", "B704", "B705", "B706", "B707", "B708", "B801", "B802", "B803", "B804", "B805", "B806", "B807", "B901", "B902", "B903", "B904", "B905", "B906", "B907", "B908", "B909", "B910", "B911", "B912", "B913", "B914", "B915", "B916", "B917", "B918", "B919", "B920", "B921", "B922", "B923", "B924", "B925", "B926", "B927", "B928", "B929", "B930", "B931", "B932", "B933", "B934", "B935", "B936", "B937", "B938", "B939", "B940", "B941", "B942", "B943", "B944", "B945", "B946", "B947", "B948", "B949", "B950"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+warn_unused_configs = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+disallow_untyped_decorators = false
+no_implicit_optional = false
+warn_redundant_casts = false
+warn_unused_ignores = false
+warn_no_return = false
+warn_unreachable = false
+strict_equality = false
+show_error_codes = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "flet.*",
+    "piexif.*",
+    "hachoir.*",
+    "PIL.*",
+    "pydantic.*"
+]
+ignore_missing_imports = true
+
+[tool.safety]
+audit_and_monitor = true
+full_report = true
+json = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--cov=metadata_cleaner",
+    "--cov-report=xml",
+    "--cov-report=term-missing", 
+    "--cov-report=html",
+    "--cov-branch",
+    "--tb=short",
+    "--no-cov-on-fail",
+    "--strict-markers", 
+    "--disable-warnings",
+    "-ra"
+]
+markers = [
+    "unit: Unit tests for individual components",
+    "integration: Integration tests between components", 
+    "slow: Slow tests that take significant time to run",
+    "requires_files: Tests that require test files to be present",
+    "video: Tests for video processing (requires ffmpeg)",
+    "gui: Tests for GUI components",
+    "cli: Tests for CLI interface"
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning", 
+    "ignore::UserWarning:flet.*",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+    "ignore::ResourceWarning",
+]
+junit_family = "xunit2"
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s [%(levelname)8s] %(name)s: %(message)s"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S" 

@@ -1,0 +1,46 @@
+# Конфигурация для coverage.py
+[run]
+source = metadata_cleaner
+branch = True
+omit = 
+    */tests/*
+    */test_*
+    */venv/*
+    */.venv/*
+    */virtualenv/*
+    */site-packages/*
+    */__pycache__/*
+    */migrations/*
+    */examples/*
+    build.py
+    setup.py
+    */run.py
+    */.tox/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if self.debug:
+    if settings.DEBUG
+    raise AssertionError
+    raise NotImplementedError
+    if 0:
+    if __name__ == .__main__.:
+    class .*\bProtocol\):
+    @(abc\.)?abstractmethod
+
+ignore_errors = True
+show_missing = True
+precision = 2
+skip_covered = False
+
+[html]
+directory = htmlcov
+title = Metadata Cleaner Coverage Report
+
+[xml]
+output = coverage.xml
+
+[json]
+output = coverage.json
