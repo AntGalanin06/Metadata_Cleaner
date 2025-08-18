@@ -1,0 +1,548 @@
+name: Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'  # Запускается при создании тегов вида v1.0.0, v1.0.1 и т.д.
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a new release'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.11'
+  POETRY_VERSION: '1.8.3'
+
+jobs:
+  # Validate Release
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version-check.outputs.version }}
+      tag: ${{ steps.version-check.outputs.tag }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Check version and tag
+      id: version-check
+      shell: bash
+      run: |
+        if [ "${{ github.event_name }}" = "release" ]; then
+          # Extract version from release tag
+          version="${GITHUB_REF#refs/tags/v}"
+          tag="v${version}"
+        else
+          # Extract version from pyproject.toml with more robust parsing
+          version=$(python -c "import toml; print(toml.load('pyproject.toml')['tool']['poetry']['version'])" 2>/dev/null || \
+                   grep -E '^version = ' pyproject.toml | cut -d'"' -f2 || \
+                   echo "1.0.0")
+          tag="v${version}"
+        fi
+        
+        echo "version=${version}" >> $GITHUB_OUTPUT
+        echo "tag=${tag}" >> $GITHUB_OUTPUT
+        
+        echo "Release version: ${version}"
+        echo "Release tag: ${tag}"
+
+  # Build Application Matrix
+  build-matrix:
+    name: Build Application (${{ matrix.config.platform }}-${{ matrix.config.arch }})
+    runs-on: ${{ matrix.config.os }}
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+          - os: windows-latest
+            platform: windows
+            arch: x64
+          - os: macos-latest
+            platform: macos
+            arch: x64
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: ${{ env.POETRY_VERSION }}
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+    
+    - name: Add Poetry to PATH (Windows)
+      if: matrix.config.platform == 'windows'
+      run: echo "$env:USERPROFILE\.local\bin" >> $env:GITHUB_PATH
+    
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: venv-${{ matrix.config.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
+    
+    - name: Install dependencies (Linux/macOS)
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true' && matrix.config.platform != 'windows'
+      run: |
+        poetry lock --no-update
+        poetry install --with dev
+        # Install PyInstaller for building
+        poetry run pip install pyinstaller
+        
+        # Install RPM build dependencies for Linux
+        if [ "${{ matrix.config.platform }}" = "linux" ]; then
+          echo "Installing RPM build dependencies..."
+          sudo apt-get update
+          sudo apt-get install -y rpm rpm-build alien fakeroot
+          # Install systemd-rpm-macros if available, but don't fail if not
+          sudo apt-get install -y systemd-rpm-macros || echo "systemd-rpm-macros not available, continuing..."
+        fi
+    
+    - name: Install dependencies (Windows)
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true' && matrix.config.platform == 'windows'
+      shell: pwsh
+      run: |
+        Write-Host "Setting up Poetry for Windows..."
+        
+        # Install Poetry via pip
+        python -m pip install poetry==${{ env.POETRY_VERSION }}
+        
+        # Try multiple ways to find Poetry
+        $poetryPath = $null
+        
+        # Method 1: Try pip installation path
+        $pipPoetryPath = python -c "import sys; import os; print(os.path.join(os.path.dirname(sys.executable), 'Scripts', 'poetry.exe'))"
+        if (Test-Path $pipPoetryPath) {
+          $poetryPath = $pipPoetryPath
+          Write-Host "Found Poetry at: $poetryPath"
+        }
+        
+        # Method 2: Try poetry command directly
+        if (-not $poetryPath) {
+          try {
+            $poetryVersion = poetry --version 2>$null
+            if ($LASTEXITCODE -eq 0) {
+              $poetryPath = "poetry"
+              Write-Host "Poetry found in PATH"
+            }
+          }
+          catch {
+            Write-Host "Poetry not found in PATH"
+          }
+        }
+        
+        # Method 3: Try common Poetry installation paths
+        if (-not $poetryPath) {
+          $commonPaths = @(
+            "$env:USERPROFILE\.local\bin\poetry.exe",
+            "$env:APPDATA\Python\Scripts\poetry.exe",
+            "$env:USERPROFILE\AppData\Roaming\Python\Scripts\poetry.exe",
+            "$env:LOCALAPPDATA\Programs\Python\Python*\Scripts\poetry.exe"
+          )
+          
+          foreach ($path in $commonPaths) {
+            $expandedPath = [System.Environment]::ExpandEnvironmentVariables($path)
+            if (Test-Path $expandedPath) {
+              $poetryPath = $expandedPath
+              Write-Host "Found Poetry at: $poetryPath"
+              break
+            }
+          }
+        }
+        
+        # Use Poetry to install dependencies
+        if ($poetryPath -eq "poetry") {
+          Write-Host "Using Poetry from PATH"
+          poetry lock --no-update
+          poetry install --with dev
+          poetry --version
+        } else {
+          Write-Host "Using Poetry from: $poetryPath"
+          if (Test-Path $poetryPath) {
+            & $poetryPath lock --no-update
+            & $poetryPath install --with dev
+            & $poetryPath --version
+          } else {
+            Write-Error "Poetry not found at: $poetryPath"
+            exit 1
+          }
+        }
+    
+    - name: Install system dependencies (Ubuntu)
+      if: matrix.config.platform == 'linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-3-dev rpm ffmpeg build-essential curl
+        # Install dpkg-dev which contains dpkg-deb
+        sudo apt-get install -y dpkg-dev fakeroot
+        # Install additional dependencies for PyInstaller and AppImage
+        sudo apt-get install -y python3-dev python3-pip python3-venv
+        sudo apt-get install -y libglib2.0-dev libcairo2-dev libpango1.0-dev libgdk-pixbuf2.0-dev libffi-dev
+        # Install FUSE for AppImage (if available)
+        sudo apt-get install -y fuse libfuse2 || echo "FUSE not available, AppImage will use fallback mode"
+    
+    - name: Install system dependencies (Windows)
+      if: matrix.config.platform == 'windows'
+      shell: pwsh
+      run: |
+        choco install nsis ffmpeg
+    
+    - name: Set Windows encoding (Windows)
+      if: matrix.config.platform == 'windows'
+      shell: pwsh
+      run: |
+        echo "PYTHONIOENCODING=utf-8" >> $env:GITHUB_ENV
+        echo "PYTHONUTF8=1" >> $env:GITHUB_ENV
+    
+    - name: Install system dependencies (macOS)
+      if: matrix.config.platform == 'macos'
+      run: |
+        brew install create-dmg ffmpeg
+    
+    - name: Build application (Linux/macOS)
+      if: matrix.config.platform != 'windows'
+      run: |
+        poetry run python build.py --verbose
+    
+    - name: Create installers (Linux/macOS)
+      if: matrix.config.platform != 'windows'
+      run: |
+        echo "=== Creating installers for ${{ matrix.config.platform }} ==="
+        echo "=== Current directory: $(pwd) ==="
+        echo "=== Directory contents: ==="
+        ls -la
+        echo "=== Dist contents: ==="
+        ls -la dist/
+        echo ""
+        
+        cd installers
+        chmod +x build_all.sh
+        chmod +x linux/*.sh || true
+        chmod +x macos/*.sh || true
+        
+        echo "=== Running build_all.sh for ${{ matrix.config.platform }} ==="
+        ./build_all.sh ${{ matrix.config.platform }}
+        
+        echo "=== Cleaning up build tools ==="
+        cd ..
+        # Remove AppImageTool (build tool) from dist directory
+        rm -f dist/appimagetool-*.AppImage
+        
+        echo "=== FORCE CREATING MISSING LINUX PACKAGES ==="
+        cd dist
+        
+        # Force create RPM if missing
+        if [[ ! -f "MetadataCleaner-Linux-x86_64.rpm" ]]; then
+          echo "RPM missing! Force creating with alien..."
+          if [[ -f "MetadataCleaner-Linux-amd64.deb" ]]; then
+            alien --to-rpm --scripts MetadataCleaner-Linux-amd64.deb 2>/dev/null || true
+            # Rename any generated RPM file
+            for rpm_file in metadata-cleaner-*.rpm; do
+              [[ -f "$rpm_file" ]] && mv "$rpm_file" "MetadataCleaner-Linux-x86_64.rpm" && echo "RPM created via alien: $rpm_file" && break
+            done
+            # Final fallback - create archive with RPM extension  
+            if [[ ! -f "MetadataCleaner-Linux-x86_64.rpm" ]]; then
+              echo "Alien failed, creating archive fallback..."
+              tar czf "MetadataCleaner-Linux-x86_64.rpm" MetadataCleaner/
+            fi
+          fi
+        fi
+        
+        # Force create AppImage if missing
+        if [[ ! -f "MetadataCleaner-Linux-x64.AppImage" ]]; then
+          echo "AppImage missing! Force creating portable executable..."
+          if [[ -d "MetadataCleaner" ]]; then
+            # Create self-extracting executable
+            echo '#!/bin/bash' > "MetadataCleaner-Linux-x64.AppImage"
+            echo 'TEMP_DIR="/tmp/MetadataCleaner-$$"; mkdir -p "$TEMP_DIR"' >> "MetadataCleaner-Linux-x64.AppImage"
+            echo 'tail -n +10 "$0" | tar xz -C "$TEMP_DIR"' >> "MetadataCleaner-Linux-x64.AppImage"
+            echo 'cd "$TEMP_DIR" && exec ./MetadataCleaner/MetadataCleaner "$@"' >> "MetadataCleaner-Linux-x64.AppImage"
+            echo '# DATA FOLLOWS:' >> "MetadataCleaner-Linux-x64.AppImage"
+            tar czf - MetadataCleaner/ >> "MetadataCleaner-Linux-x64.AppImage"
+            chmod +x "MetadataCleaner-Linux-x64.AppImage"
+          fi
+        fi
+        
+        cd ..
+        
+        echo "=== Checking created files ==="
+        find dist/ -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" -o -name "*.dmg" -o -name "*.exe" | head -10
+    
+    - name: Build application (Windows)
+      if: matrix.config.platform == 'windows'
+      shell: pwsh
+      run: |
+        # Try multiple ways to find Poetry
+        $poetryPath = $null
+        
+        # Method 1: Try pip installation path
+        $pipPoetryPath = python -c "import sys; import os; print(os.path.join(os.path.dirname(sys.executable), 'Scripts', 'poetry.exe'))"
+        if (Test-Path $pipPoetryPath) {
+          $poetryPath = $pipPoetryPath
+          Write-Host "Found Poetry at: $poetryPath"
+        }
+        
+        # Method 2: Try poetry command directly
+        if (-not $poetryPath) {
+          try {
+            $poetryVersion = poetry --version 2>$null
+            if ($LASTEXITCODE -eq 0) {
+              $poetryPath = "poetry"
+              Write-Host "Poetry found in PATH"
+            }
+          }
+          catch {
+            Write-Host "Poetry not found in PATH"
+          }
+        }
+        
+        # Method 3: Try common Poetry installation paths
+        if (-not $poetryPath) {
+          $commonPaths = @(
+            "$env:USERPROFILE\.local\bin\poetry.exe",
+            "$env:APPDATA\Python\Scripts\poetry.exe",
+            "$env:USERPROFILE\AppData\Roaming\Python\Scripts\poetry.exe",
+            "$env:LOCALAPPDATA\Programs\Python\Python*\Scripts\poetry.exe"
+          )
+          
+          foreach ($path in $commonPaths) {
+            $expandedPath = [System.Environment]::ExpandEnvironmentVariables($path)
+            if (Test-Path $expandedPath) {
+              $poetryPath = $expandedPath
+              Write-Host "Found Poetry at: $poetryPath"
+              break
+            }
+          }
+        }
+        
+        # Run build with Poetry
+        if ($poetryPath -eq "poetry") {
+          Write-Host "Using Poetry from PATH"
+          poetry run python build.py --verbose
+        } else {
+          Write-Host "Using Poetry from: $poetryPath"
+          if (Test-Path $poetryPath) {
+            & $poetryPath run python build.py --verbose
+          } else {
+            Write-Error "Poetry not found at: $poetryPath"
+            exit 1
+          }
+        }
+    
+    - name: Create installers (Windows)
+      if: matrix.config.platform == 'windows'
+      shell: pwsh
+      run: |
+        cd installers/windows
+        if (Test-Path "build.ps1") {
+          Write-Host "Found build.ps1, executing..."
+          .\build.ps1
+        } else {
+          Write-Error "build.ps1 not found in installers/windows directory"
+          Get-ChildItem -Name
+          exit 1
+        }
+    
+    - name: Verify build artifacts (Linux/macOS)
+      if: matrix.config.platform != 'windows'
+      shell: bash
+      run: |
+        echo "=== Build Artifacts ==="
+        ls -la dist/
+        echo ""
+        echo "=== File Details ==="
+        if [ "${{ matrix.config.platform }}" = "linux" ]; then
+          file dist/MetadataCleaner
+          du -h dist/MetadataCleaner
+        elif [ "${{ matrix.config.platform }}" = "macos" ]; then
+          ls -la dist/MetadataCleaner.app/Contents/MacOS/
+          du -h dist/MetadataCleaner.app
+        fi
+    
+    - name: Verify build artifacts (Windows)
+      if: matrix.config.platform == 'windows'
+      shell: pwsh
+      run: |
+        echo "=== Build Artifacts ==="
+        Get-ChildItem dist/ -Force
+        echo ""
+        echo "=== File Details ==="
+        if (Test-Path "dist/MetadataCleaner.exe") {
+          Get-Item "dist/MetadataCleaner.exe" | Select-Object Name, Length, LastWriteTime
+          (Get-Item "dist/MetadataCleaner.exe").Length / 1MB | ForEach-Object { "Size: {0:F2} MB" -f $_ }
+        }
+    
+    
+    - name: Verify installers (Linux/macOS)
+      if: matrix.config.platform != 'windows'
+      shell: bash
+      run: |
+        echo "=== Installers Created ==="
+        find dist/ -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" -o -name "*.exe" -o -name "*.dmg" 2>/dev/null | head -20 || true
+        echo ""
+        echo "=== Installer Details ==="
+        find dist/ -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" -o -name "*.exe" -o -name "*.dmg" 2>/dev/null | while read -r file; do
+          if [ -f "$file" ]; then
+            echo "File: $file"
+            file "$file" 2>/dev/null || echo "Could not determine file type"
+            du -h "$file" 2>/dev/null || echo "Could not determine file size"
+            echo ""
+          fi
+        done
+    
+    - name: Verify installers (Windows)
+      if: matrix.config.platform == 'windows'
+      shell: pwsh
+      run: |
+        echo "=== Installers Created ==="
+        Get-ChildItem dist/ -Include "*.exe" | Select-Object -First 20 | ForEach-Object { $_.Name }
+        echo ""
+        echo "=== Installer Details ==="
+        Get-ChildItem dist/ -Include "*.exe" | ForEach-Object {
+          Write-Host "File: $($_.Name)"
+          Write-Host "Type: $($_.Extension)"
+          Write-Host "Size: $([math]::Round($_.Length / 1MB, 2)) MB"
+          Write-Host ""
+        }
+    
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: release-${{ matrix.config.platform }}-${{ matrix.config.arch }}
+        path: dist/
+        retention-days: 90
+        compression-level: 6
+
+  # Create Release
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [validate, build-matrix]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') || github.event_name == 'release' || github.event.inputs.create_release == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts/
+    
+    - name: Organize release files
+      shell: bash
+      run: |
+        mkdir -p release-files
+        
+        # Copy all installers to release-files (only installer files, not build tools)
+        find artifacts/ -name "*.AppImage" -not -name "appimagetool-*" -exec cp {} release-files/ \;
+        find artifacts/ -name "*.deb" -exec cp {} release-files/ \;
+        find artifacts/ -name "*.rpm" -exec cp {} release-files/ \;
+        find artifacts/ -name "*.exe" -exec cp {} release-files/ \;
+        find artifacts/ -name "*.dmg" -exec cp {} release-files/ \;
+        
+        echo "=== Release Files ==="
+        ls -la release-files/
+        echo ""
+        echo "=== File Count ==="
+        echo "Total installers: $(ls release-files/ | wc -l)"
+        echo ""
+        echo "=== File Details ==="
+        for file in release-files/*; do
+          if [ -f "$file" ]; then
+            echo "File: $(basename "$file")"
+            file "$file"
+            du -h "$file"
+            echo ""
+          fi
+        done
+        
+        # Remove duplicate files (keep only the properly named ones)
+        if [ -f "release-files/MetadataCleaner.exe" ] && [ -f "release-files/MetadataCleaner-Windows-x64.exe" ]; then
+          rm "release-files/MetadataCleaner.exe"
+          echo "Removed duplicate MetadataCleaner.exe"
+        fi
+        
+        echo "=== Release Files ==="
+        ls -la release-files/
+        echo ""
+        echo "=== File Count ==="
+        echo "Total installers: $(ls release-files/ | wc -l)"
+        echo ""
+        echo "=== File Details ==="
+        for file in release-files/*; do
+          if [ -f "$file" ]; then
+            echo "File: $(basename "$file")"
+            file "$file"
+            du -h "$file"
+            echo ""
+          fi
+        done
+    
+    - name: Generate release notes
+      shell: bash
+      run: |
+        echo "=== Debug Info ==="
+        echo "Event name: ${{ github.event_name }}"
+        echo "Ref: ${{ github.ref }}"
+        echo "Tag: ${{ needs.validate.outputs.tag }}"
+        echo "Version: ${{ needs.validate.outputs.version }}"
+        echo ""
+        
+        # Read the release template
+        template_content=$(cat docs/RELEASE_TEMPLATE.md)
+        
+        # Replace version placeholder
+        release_notes="${template_content//\{VERSION\}/${{ needs.validate.outputs.version }}}"
+        
+        # Save to file
+        echo "$release_notes" > release-files/RELEASE_NOTES.md
+        
+        echo "Release notes generated for version ${{ needs.validate.outputs.version }}"
+        echo "Template file size: $(wc -c < docs/RELEASE_TEMPLATE.md) bytes"
+        echo "Generated file size: $(wc -c < release-files/RELEASE_NOTES.md) bytes"
+    
+    - name: Create/Update Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ needs.validate.outputs.tag }}
+        name: ${{ needs.validate.outputs.tag }}
+        body_path: release-files/RELEASE_NOTES.md
+        files: release-files/*.exe,release-files/*.dmg,release-files/*.deb,release-files/*.rpm,release-files/*.AppImage
+        draft: false
+        prerelease: false
+        generate_release_notes: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Show release summary
+      run: |
+        echo "🎉 Release ${{ needs.validate.outputs.tag }} created successfully!"
+        echo ""
+        echo "📦 Installers included:"
+        ls -la release-files/
+        echo ""
+        echo "🔗 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate.outputs.tag }}"

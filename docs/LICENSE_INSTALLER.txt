@@ -1,0 +1,46 @@
+METADATA CLEANER TERMS OF SERVICE
+
+Effective Date: June 23, 2025
+
+By downloading, installing, or using the "Metadata Cleaner" application, you agree to the terms of this Terms of Service.
+
+1. APPLICATION DESCRIPTION
+The Application is designed to remove metadata from various file types:
+- Images (JPG, JPEG, PNG, GIF, HEIC, HEIF)
+- Documents (DOCX, PPTX, XLSX)
+- PDF files
+- Video files (MP4, MOV)
+
+2. MIT LICENSE
+The Application is distributed under the MIT license, which grants you the right to:
+- Use for personal and commercial purposes
+- Study the source code
+- Modify the code for your own needs
+- Distribute the original or modified version
+
+3. USER OBLIGATIONS
+You agree to:
+- Use the Application only for lawful purposes
+- Process only files to which you have rights
+- Respect third-party copyrights
+
+4. LIMITATION OF LIABILITY
+The Application is provided "as is" without any warranties:
+- We do not guarantee error-free operation
+- We are not responsible for data loss
+- We do not guarantee compatibility with your system
+
+5. PRIVACY
+- All files are processed locally on your device
+- No information is transmitted over the internet
+- The Application does not collect users' personal data
+
+6. TECHNICAL SUPPORT
+Support is provided through:
+- GitHub Issues in the project repository
+- Documentation in the repository
+
+By clicking "I Accept", you confirm that you have read, understood, and agreed to the terms of this Terms of Service.
+
+Copyright (c) 2025 AntGalanin06
+Last Updated: June 25, 2025 
