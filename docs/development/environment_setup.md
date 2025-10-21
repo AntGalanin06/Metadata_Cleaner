@@ -44,9 +44,19 @@ npm run tauri dev
 
 # Component tests
 npm run test
+
+# Produce installable bundles
+npm run tauri build
 ```
 
 Tauri bundles the compiled React app and spawns the FastAPI server during development builds. Make sure `TAURI_DEV_HOST` or the default `http://127.0.0.1:8765` is reachable.
+
+| Target | Extra notes |
+| --- | --- |
+| Windows | Ensure the MSVC build tools and Windows SDK are installed. `npm run tauri build` produces MSI/EXE artefacts under `apps/desktop/src-tauri/target/release`. |
+| macOS | Requires a signing identity (or `TAURI_SIGNING_IDENTITY=-` for unsigned dev builds) and an initialised CocoaPods environment. The generated DMG is placed in `src-tauri/target/release`. |
+| Linux | Install WebKitGTK/GTK dev packages before building. The command outputs `.AppImage` and `.deb` packages in `src-tauri/target/release`. |
+
 
 ## 4. Continuous Integration outline
 

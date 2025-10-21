@@ -1,4 +1,8 @@
+import type { JSX } from "react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+
+import JobProgressPanel from "./components/JobProgressPanel";
+import { JobLogInfo, JobProgressPayload } from "./types";
 
 const API_URL = "http://127.0.0.1:8765";
 
@@ -52,6 +56,10 @@ function App() {
   const [results, setResults] = useState<ProcessResult[]>([]);
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<string | null>(null);
+  const [jobProgress, setJobProgress] = useState<JobProgressPayload | null>(null);
+  const [jobLogInfo, setJobLogInfo] = useState<JobLogInfo | null>(null);
+  const [jobCreatedAt, setJobCreatedAt] = useState<string | null>(null);
+  const [jobCompletedAt, setJobCompletedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,16 +70,22 @@ function App() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [profileDraft, setProfileDraft] = useState<Profile | null>(null);
+  const [profileOriginal, setProfileOriginal] = useState<Profile | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
 
   const jobSocketRef = useRef<WebSocket | null>(null);
   const profileSocketRef = useRef<WebSocket | null>(null);
+  const profileHasChangesRef = useRef(false);
 
   const resetJobState = () => {
     setJobId(null);
     setJobStatus(null);
     setResults([]);
+    setJobProgress(null);
+    setJobLogInfo(null);
+    setJobCreatedAt(null);
+    setJobCompletedAt(null);
   };
 
   const stopJobWebSocket = () => {
@@ -140,13 +154,26 @@ function App() {
     };
   };
 
-  const syncProfileState = (snapshot: ProfileSnapshot) => {
+  const syncProfileState = (snapshot: ProfileSnapshot, preserveDraft = false) => {
     const snapshotProfiles = snapshot.profiles ?? [];
     setProfiles(snapshotProfiles);
     const activeId = snapshot.active_id ?? null;
     setActiveProfileId(activeId);
     const activeProfile = snapshotProfiles.find((item) => item.id === activeId) ?? null;
-    setProfileDraft(toEditableProfile(activeProfile));
+    const editableActive = toEditableProfile(activeProfile);
+    setProfileOriginal(editableActive);
+    setProfileDraft((current) => {
+      if (
+        preserveDraft &&
+        current &&
+        editableActive &&
+        current.id === editableActive.id &&
+        profileHasChangesRef.current
+      ) {
+        return current;
+      }
+      return editableActive;
+    });
   };
 
   const fetchProfiles = async () => {
@@ -177,9 +204,11 @@ function App() {
       profiles: (payload.profiles ?? []) as Profile[],
       active_id: (payload.active_id ?? null) as string | null,
     };
-    syncProfileState(snapshot);
+    syncProfileState(snapshot, true);
     if (eventType === "profile_created" && payload.profile) {
-      setProfileDraft(toEditableProfile(payload.profile as Profile));
+      const editable = toEditableProfile(payload.profile as Profile);
+      setProfileDraft(editable);
+      setProfileOriginal(editable);
       setProfileError(null);
     }
   };
@@ -291,7 +320,9 @@ function App() {
         throw new Error("Failed to save profile");
       }
       const saved = (await response.json()) as Profile;
-      setProfileDraft(toEditableProfile(saved));
+      const editableSaved = toEditableProfile(saved);
+      setProfileDraft(editableSaved);
+      setProfileOriginal(editableSaved);
       setProfileError(null);
     } catch (err) {
       console.error(err);
@@ -316,10 +347,47 @@ function App() {
         throw new Error("Failed to create profile");
       }
       const created = (await response.json()) as Profile;
-      setProfileDraft(toEditableProfile(created));
+      const editableCreated = toEditableProfile(created);
+      setProfileDraft(editableCreated);
+      setProfileOriginal(editableCreated);
     } catch (err) {
       console.error(err);
       setProfileError("Не удалось создать новый профиль.");
+    }
+  };
+
+  const handleProfileReset = () => {
+    if (!profileOriginal) {
+      return;
+    }
+    setProfileDraft(toEditableProfile(profileOriginal));
+    setProfileError(null);
+  };
+
+  const handleProfileDelete = async () => {
+    if (!profileDraft || profileDraft.id === "default") {
+      setProfileError("Нельзя удалить профиль по умолчанию.");
+      return;
+    }
+
+    if (typeof window !== "undefined" && !window.confirm("Удалить текущий профиль?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/settings/profiles/${profileDraft.id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to delete profile");
+      }
+      await fetchProfiles();
+      setProfileDraft(null);
+      setProfileOriginal(null);
+      setProfileError(null);
+    } catch (err) {
+      console.error(err);
+      setProfileError("Не удалось удалить профиль.");
     }
   };
 
@@ -335,10 +403,68 @@ function App() {
     return fileTypeMap;
   }, [metadataCatalogue]);
 
+  const metadataCategoriesByFileType = useMemo(() => {
+    const fileTypeMap = new Map<string, Map<string, MetadataField[]>>();
+    metadataCatalogue.forEach((item) => {
+      const categoryMap = new Map<string, MetadataField[]>();
+      item.fields.forEach((field) => {
+        const category = field.category || "Прочее";
+        const list = categoryMap.get(category) ?? [];
+        list.push(field);
+        categoryMap.set(category, list);
+      });
+      fileTypeMap.set(item.file_type, categoryMap);
+    });
+    return fileTypeMap;
+  }, [metadataCatalogue]);
+
   const resolveMetadataLabel = (fileType: string, key: string) => {
     const field = metadataLookup.get(fileType)?.get(key);
     return field?.name_key ?? key;
   };
+
+  const normalizeText = (value: string | null | undefined) => value?.trim() ?? "";
+
+  const areFileSettingsEqual = (
+    a: Record<string, Record<string, boolean>>,
+    b: Record<string, Record<string, boolean>>,
+  ) => {
+    const fileTypes = new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})]);
+    for (const fileType of fileTypes) {
+      const left = a[fileType] ?? {};
+      const right = b[fileType] ?? {};
+      const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+      for (const key of keys) {
+        if (Boolean(left[key]) !== Boolean(right[key])) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const profileHasChanges = useMemo(() => {
+    if (!profileDraft || !profileOriginal) {
+      return false;
+    }
+    if (normalizeText(profileDraft.name) !== normalizeText(profileOriginal.name)) {
+      return true;
+    }
+    if (
+      normalizeText(profileDraft.description) !==
+      normalizeText(profileOriginal.description)
+    ) {
+      return true;
+    }
+    return !areFileSettingsEqual(
+      profileDraft.file_type_settings,
+      profileOriginal.file_type_settings,
+    );
+  }, [profileDraft, profileOriginal]);
+
+  useEffect(() => {
+    profileHasChangesRef.current = profileHasChanges;
+  }, [profileHasChanges]);
 
   const startJobWebSocket = (id: string) => {
     stopJobWebSocket();
@@ -347,11 +473,25 @@ function App() {
     setJobId(id);
     setJobStatus("pending");
     setResults([]);
+    setJobProgress(null);
+    setJobLogInfo(null);
+    setJobCreatedAt(null);
+    setJobCompletedAt(null);
 
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data ?? "{}");
         setJobStatus(payload.status ?? null);
+        setJobProgress(
+          payload.progress ? (payload.progress as JobProgressPayload) : null,
+        );
+        setJobLogInfo(
+          payload.log
+            ? (payload.log as JobLogInfo)
+            : { ready: false, formats: [] },
+        );
+        setJobCreatedAt(payload.created_at ?? null);
+        setJobCompletedAt(payload.completed_at ?? null);
         const normalized: ProcessResult[] = (payload.results ?? []).map((item: any) => ({
           path: String(item.path ?? ""),
           status: String(item.status ?? "unknown"),
@@ -594,47 +734,121 @@ function App() {
                 <div className="grid gap-4 md:grid-cols-2">
                   {Object.entries(profileDraft.file_type_settings)
                     .sort(([a], [b]) => a.localeCompare(b))
-                    .map(([fileType, fields]) => (
-                      <div key={fileType} className="rounded-lg border border-slate-800 bg-slate-950/40 p-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
-                            {fileType}
-                          </h3>
-                          <span className="text-xs text-slate-500">{Object.keys(fields).length} полей</span>
+                    .map(([fileType, fields]) => {
+                      const categoryMap = metadataCategoriesByFileType.get(fileType);
+                      const categorizedKeys = new Set<string>();
+                      const categoryEntries = categoryMap
+                        ? Array.from(categoryMap.entries()).sort(([a], [b]) => a.localeCompare(b))
+                        : [];
+                      const renderFieldCheckbox = (fieldKey: string, enabled: boolean) => (
+                        <label
+                          key={`${fileType}-${fieldKey}`}
+                          className="flex items-start gap-2 text-sm text-slate-200"
+                        >
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4 rounded border-slate-700 bg-slate-900"
+                            checked={Boolean(enabled)}
+                            onChange={() => handleToggleMetadataField(fileType, fieldKey)}
+                          />
+                          <span>{resolveMetadataLabel(fileType, fieldKey)}</span>
+                        </label>
+                      );
+
+                      const categorySections: JSX.Element[] = [];
+
+                      categoryEntries.forEach(([category, metadataFields]) => {
+                        const relevant = metadataFields.filter((field) => fields[field.key] !== undefined);
+                        if (relevant.length === 0) {
+                          return;
+                        }
+                        relevant.forEach((field) => categorizedKeys.add(field.key));
+                        const sortedRelevant = relevant.sort((a, b) => {
+                          if (a.priority !== b.priority) {
+                            return a.priority - b.priority;
+                          }
+                          return a.name_key.localeCompare(b.name_key);
+                        });
+                        categorySections.push(
+                          <div key={`${fileType}-${category}`} className="space-y-1">
+                            <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              {category}
+                            </h4>
+                            <div className="space-y-1">
+                              {sortedRelevant.map((field) =>
+                                renderFieldCheckbox(field.key, Boolean(fields[field.key])),
+                              )}
+                            </div>
+                          </div>,
+                        );
+                      });
+
+                      const uncategorized = Object.entries(fields)
+                        .filter(([fieldKey]) => !categorizedKeys.has(fieldKey))
+                        .sort(([a], [b]) => a.localeCompare(b));
+
+                      return (
+                        <div key={fileType} className="rounded-lg border border-slate-800 bg-slate-950/40 p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+                              {fileType}
+                            </h3>
+                            <span className="text-xs text-slate-500">{Object.keys(fields).length} полей</span>
+                          </div>
+                          <div className="space-y-3 max-h-52 overflow-y-auto pr-1 custom-scrollbar">
+                            {categorySections.length > 0 && categorySections}
+                            {uncategorized.length > 0 && (
+                              <div className="space-y-1">
+                                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                  Прочее
+                                </h4>
+                                <div className="space-y-1">
+                                  {uncategorized.map(([fieldKey, enabled]) =>
+                                    renderFieldCheckbox(fieldKey, Boolean(enabled)),
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="space-y-2 max-h-52 overflow-y-auto pr-1 custom-scrollbar">
-                          {Object.entries(fields)
-                            .sort(([a], [b]) => a.localeCompare(b))
-                            .map(([fieldKey, enabled]) => (
-                              <label
-                                key={`${fileType}-${fieldKey}`}
-                                className="flex items-start gap-2 text-sm text-slate-200"
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="mt-1 h-4 w-4 rounded border-slate-700 bg-slate-900"
-                                  checked={Boolean(enabled)}
-                                  onChange={() => handleToggleMetadataField(fileType, fieldKey)}
-                                />
-                                <span>
-                                  {resolveMetadataLabel(fileType, fieldKey)}
-                                </span>
-                              </label>
-                            ))}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                 </div>
 
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={handleProfileSave}
-                    disabled={profileSaving || !profileDraft || connectionStatus !== "connected"}
-                    className="px-4 py-2 rounded bg-blue-500 disabled:bg-blue-500/40 text-white text-sm font-medium hover:bg-blue-600 transition"
-                  >
-                    {profileSaving ? "Сохранение..." : "Сохранить профиль"}
-                  </button>
+                <div className="flex flex-col gap-3">
+                  {profileHasChanges && (
+                    <span className="text-xs text-amber-300">
+                      Есть несохранённые изменения профиля
+                    </span>
+                  )}
+                  <div className="flex flex-wrap items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={handleProfileReset}
+                      disabled={!profileHasChanges}
+                      className="rounded bg-slate-800 px-3 py-2 text-xs font-medium text-slate-200 disabled:opacity-50"
+                    >
+                      Отменить изменения
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleProfileDelete}
+                      disabled={!profileDraft || profileDraft.id === "default"}
+                      className="rounded bg-red-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+                    >
+                      Удалить профиль
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleProfileSave}
+                      disabled={
+                        profileSaving || !profileDraft || connectionStatus !== "connected"
+                      }
+                      className="rounded bg-blue-500 px-4 py-2 text-sm font-medium text-white disabled:bg-blue-500/40"
+                    >
+                      {profileSaving ? "Сохранение..." : "Сохранить профиль"}
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -643,33 +857,15 @@ function App() {
           </div>
         </section>
 
-        {jobId && (
-          <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4 space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm text-slate-400">Задача</span>
-              <code className="text-xs bg-slate-950/80 border border-slate-800 rounded px-2 py-1 text-slate-300">
-                {jobId}
-              </code>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm text-slate-400">Статус</span>
-              <span
-                className={`text-xs uppercase tracking-wide ${
-                  jobStatus === "success"
-                    ? "text-emerald-400"
-                    : jobStatus === "error"
-                    ? "text-red-400"
-                    : "text-amber-300"
-                }`}
-              >
-                {jobStatus ?? "pending"}
-              </span>
-            </div>
-            {jobStatus && !["success", "error"].includes(jobStatus) && (
-              <p className="text-xs text-slate-500">Задача выполняется, обновления приходят в реальном времени.</p>
-            )}
-          </div>
-        )}
+        <JobProgressPanel
+          jobId={jobId}
+          status={jobStatus}
+          progress={jobProgress}
+          logInfo={jobLogInfo}
+          createdAt={jobCreatedAt}
+          completedAt={jobCompletedAt}
+          apiUrl={API_URL}
+        />
 
         {results.length > 0 && (
           <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 space-y-3">

@@ -3,8 +3,16 @@
 import contextlib
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    FastAPI,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from metadata_cleaner_core.api.schemas import (
     CleaningOptionsModel,
@@ -17,6 +25,8 @@ from metadata_cleaner_core.api.schemas import (
     ProfileListResponse,
     ProfileModel,
     ProfileUpdatePayload,
+    JobLogInfoModel,
+    JobProgressModel,
     SettingsPayload,
     SettingsResponse,
     SettingsSchemaResponse,
@@ -242,7 +252,45 @@ def create_app() -> FastAPI:
             )
             for result in job.results
         ]
-        return ProcessResponse(job_id=job.job_id, status=job.status, results=results)
+        progress_payload = job.progress.as_dict() if job.progress else None
+        progress_model = (
+            JobProgressModel(**progress_payload) if progress_payload else None
+        )
+        log_formats: list[str] = []
+        if job.log_path and job.log_path.exists():
+            log_formats.append("json")
+        if job.csv_log_path and job.csv_log_path.exists():
+            log_formats.append("csv")
+        log_info = JobLogInfoModel(ready=bool(job.completed_at and log_formats), formats=log_formats)
+        return ProcessResponse(
+            job_id=job.job_id,
+            status=job.status,
+            results=results,
+            progress=progress_model,
+            log=log_info,
+            created_at=job.created_at.isoformat(),
+            completed_at=job.completed_at.isoformat() if job.completed_at else None,
+        )
+
+    @api_router.get("/jobs/{job_id}/log", tags=["processing"])
+    async def download_job_log(
+        job_id: str, format: str = Query("json", pattern="^(json|csv)$")
+    ) -> FileResponse:
+        job = await job_manager.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        if format == "csv":
+            path = job.csv_log_path
+            media_type = "text/csv"
+        else:
+            path = job.log_path
+            media_type = "application/json"
+
+        if not path or not path.exists():
+            raise HTTPException(status_code=404, detail="Log not available")
+
+        return FileResponse(path, media_type=media_type, filename=path.name)
 
     @app.websocket("/ws/jobs/{job_id}")
     async def job_updates(websocket: WebSocket, job_id: str) -> None:

@@ -11,7 +11,7 @@
   <a href="https://github.com/AntGalanin06/Metadata_Cleaner/releases/latest"><img src="https://img.shields.io/github/v/release/AntGalanin06/Metadata_Cleaner?label=latest%20release" alt="Latest Release"/></a>
   <a href="https://github.com/AntGalanin06/Metadata_Cleaner/stargazers"><img src="https://img.shields.io/github/stars/AntGalanin06/Metadata_Cleaner?style=social" alt="GitHub Stars"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"/></a>
-  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python 3.11+"/></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.14+-blue.svg" alt="Python 3.14+"/></a>
 </p>
 
 <p align="center">
@@ -76,6 +76,7 @@
 - **List of removed metadata** with descriptions
 - **Processing status** for each file
 - **Information about cleaning results**
+- **Downloadable JSON/CSV logs** for auditing and support
 
 </td>
 </tr>
@@ -369,36 +370,67 @@ Speed depends on:
 
 | Layer | Responsibilities |
 | ----- | ---------------- |
-| **Backend (`backend/src/metadata_cleaner_core`)** | FastAPI application with a job queue, cleaning dispatcher, and persisted settings service. Profiles, settings, and processing events are exposed through REST and WebSocket channels. |
+| **Backend (`backend/src/metadata_cleaner_core`)** | FastAPI application with a job queue, stepwise progress tracker, downloadable processing logs, and a persisted settings service. Profiles, settings, and progress events are exposed through REST and WebSocket channels. |
 | **Desktop shell (`apps/desktop`)** | Vite + React UI bundled with Tauri. Communicates with the backend over HTTP/WebSocket, manages cleaning profiles in real time, and renders task progress. |
 | **Engine (`metadata_cleaner`)** | Cross-platform metadata removal routines reused by the CLI, legacy app, and the new core. |
 | **Docs & tooling** | Migration notes, build scripts, CI workflows. |
 
-The Tauri process launches the FastAPI backend and proxies all API calls. Profile changes and job updates are synchronised through dedicated WebSocket channels so multiple windows stay in sync.
+The Tauri process launches the FastAPI backend and proxies all API calls. Profile changes and job updates are synchronised through dedicated WebSocket channels so multiple windows stay in sync, and finished jobs expose downloadable JSON/CSV logs via `/api/jobs/{job_id}/log`.
 
 ## 🛠️ Development setup
 
-1. **Prerequisites**
-   - Python 3.14 with [Poetry](https://python-poetry.org/) for dependency management
-   - Node.js 18+ and npm (or pnpm) for the React desktop shell
-   - Rust toolchain + `cargo install tauri-cli` for packaging
-   - libgtk / WebKitGTK on Linux, Xcode Command Line Tools on macOS, and the Windows 10 SDK for Windows builds
-2. **Install backend dependencies**
+1. **Install prerequisites**
+
+   | Platform | Toolchain |
+   | --- | --- |
+   | Linux | Python 3.14 (`pyenv`/system), [Poetry 1.8+](https://python-poetry.org/), Node.js 18 LTS, npm or pnpm, Rust (`rustup toolchain install stable`), `cargo install tauri-cli`, GTK/WebKitGTK (`sudo apt install build-essential libgtk-3-dev libayatana-appindicator3-dev webkit2gtk-4.1`) |
+   | macOS | Xcode Command Line Tools, `brew install python@3.14 node@18 rustup`, `cargo install tauri-cli`, `brew install cocoapods webkit2gtk` |
+   | Windows | Visual Studio Build Tools (C++ workload), Windows 10/11 SDK, [Python 3.14](https://www.python.org/downloads/windows/), Node.js 18 LTS, `winget install Rustlang.Rustup`, `cargo install tauri-cli`, PowerShell 7 |
+
+2. **Backend (FastAPI + Poetry)**
+
    ```bash
    cd backend
+   poetry env use python3.14
    poetry install
+
+   # launch API with live reload on http://127.0.0.1:8765
+   poetry run uvicorn metadata_cleaner_core.api.app:create_app --factory --reload
+
+   # run automated tests (REST + WebSocket coverage)
+   poetry run pytest
    ```
-3. **Install desktop dependencies**
+
+3. **Desktop shell (React + Tauri)**
+
    ```bash
-   cd ../apps/desktop
+   cd apps/desktop
    npm install
+
+   # Vite dev server (expects backend on :8765)
+   npm run dev
+
+   # Full-stack window with backend auto-started by Tauri
+   npm run tauri dev
+
+   # Component tests (Vitest + Testing Library)
+   npm run test
    ```
-4. **Run the stack locally**
-   - start the backend: `cd backend && poetry run uvicorn metadata_cleaner_core.api.app:create_app --factory --reload`
-   - run the desktop shell: `cd apps/desktop && npm run dev` (or `npm run tauri dev` to bundle everything in a single window)
-5. **Execute tests**
-   - backend: `cd backend && poetry run pytest`
-   - frontend: `cd apps/desktop && npm run test`
+
+4. **Create desktop bundles**
+
+   ```bash
+   cd apps/desktop
+   npm run tauri build
+   ```
+
+   On Windows the command produces MSI/EXE installers, on macOS a signed DMG, and on Linux AppImage/DEB packages. Ensure the corresponding platform SDKs listed above are installed before invoking the build.
+
+5. **Continuous Integration**
+
+   - Backend job: set up Python 3.14, run `poetry install` and `poetry run pytest`.
+   - Frontend job: install Node 18, run `npm ci`, `npm run build`, and `npm run test`.
+   - Optional release job: install Rust + `tauri-cli` and run `npm run tauri build` for each target OS.
 
 ## 📄 Documentation
 

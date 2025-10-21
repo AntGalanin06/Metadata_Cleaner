@@ -23,6 +23,7 @@ class SettingsService:
         self._settings = self._load_default_settings()
         self._ensure_settings_directory()
         self.load_settings()
+        self._apply_active_profile_settings()
 
     def _get_settings_file_path(self) -> Path:
         """Return the system-specific settings path."""
@@ -77,6 +78,11 @@ class SettingsService:
                 "verify_file_integrity": True,
                 "create_processing_log": True,
             },
+            "logging": {
+                "level": "info",
+                "directory": "logs",
+                "format": "jsonl",
+            },
             "profiles": {
                 "active_id": "default",
                 "items": [
@@ -98,9 +104,17 @@ class SettingsService:
                 with open(self._settings_file, encoding="utf-8") as file:
                     saved_settings = json.load(file)
                 self._merge_settings(self._settings, saved_settings)
+                self._apply_active_profile_settings()
         except (json.JSONDecodeError, OSError):
             # Ignore errors and continue with defaults.
             pass
+
+    def _apply_active_profile_settings(self) -> None:
+        active_profile = self.get_active_profile()
+        if active_profile:
+            self._settings["file_type_settings"] = copy.deepcopy(
+                active_profile.get("file_type_settings", {})
+            )
 
     def _merge_settings(self, default: dict, saved: dict) -> None:
         for key, value in saved.items():
@@ -142,7 +156,35 @@ class SettingsService:
         return self._settings.get("auto_close_after_completion", False)
 
     def get_file_type_settings(self, file_type: str) -> dict[str, bool]:
+        profile_settings = (
+            self.get_active_profile().get("file_type_settings", {})
+            if self.get_active_profile()
+            else {}
+        )
+        if profile_settings.get(file_type):
+            return copy.deepcopy(profile_settings[file_type])
         return self._settings.get("file_type_settings", {}).get(file_type, {})
+
+    def get_active_profile(self) -> dict[str, Any] | None:
+        profiles_section = self._settings.get("profiles", {})
+        active_id = profiles_section.get("active_id", "default")
+        for profile in profiles_section.get("items", []):
+            if profile.get("id") == active_id:
+                return profile
+        return None
+
+    def set_active_profile(self, profile_id: str) -> dict[str, Any]:
+        profiles_section = self._settings.setdefault(
+            "profiles", copy.deepcopy(self._load_default_settings()["profiles"])
+        )
+        if any(profile["id"] == profile_id for profile in profiles_section.get("items", [])):
+            profiles_section["active_id"] = profile_id
+            self._settings["file_type_settings"] = copy.deepcopy(
+                self.get_profile(profile_id)["file_type_settings"]
+            )
+            self.save_settings()
+            return self.list_profiles()
+        raise KeyError(profile_id)
 
     def should_remove_metadata(self, file_type: str, metadata_type: str) -> bool:
         file_settings = self.get_file_type_settings(file_type)
@@ -253,6 +295,10 @@ class SettingsService:
                     profile["file_type_settings"] = self._sanitize_file_type_settings(
                         file_type_settings
                     )
+                    if profiles_section.get("active_id") == profile_id:
+                        self._settings["file_type_settings"] = copy.deepcopy(
+                            profile["file_type_settings"]
+                        )
                 profile["updated_at"] = datetime.now(timezone.utc).isoformat()
                 self.save_settings()
                 return copy.deepcopy(profile)
@@ -276,19 +322,41 @@ class SettingsService:
                     if fallback is None and items:
                         fallback = items[0]["id"]
                     profiles_section["active_id"] = fallback or "default"
+                    active_profile = self.get_active_profile()
+                    if active_profile:
+                        self._settings["file_type_settings"] = copy.deepcopy(
+                            active_profile.get("file_type_settings", {})
+                        )
+                    else:
+                        self._settings["file_type_settings"] = self._get_default_file_type_settings()
                 self.save_settings()
                 return copy.deepcopy(removed)
         raise KeyError(profile_id)
 
-    def set_active_profile(self, profile_id: str) -> dict[str, Any]:
-        profiles_section = self._settings.setdefault(
-            "profiles", copy.deepcopy(self._load_default_settings()["profiles"])
-        )
-        if any(profile["id"] == profile_id for profile in profiles_section.get("items", [])):
-            profiles_section["active_id"] = profile_id
-            self.save_settings()
-            return self.list_profiles()
-        raise KeyError(profile_id)
+    def get_logging_level(self) -> str:
+        logging_settings = self._settings.get("logging", {})
+        return str(logging_settings.get("level", "info")).lower()
+
+    def update_logging_level(self, level: str) -> None:
+        logging_settings = self._settings.setdefault("logging", {})
+        logging_settings["level"] = level.lower()
+        self.save_settings()
+
+    def get_logging_directory(self) -> Path:
+        logging_settings = self._settings.setdefault("logging", {})
+        directory = logging_settings.get("directory", "logs")
+        path = Path(directory)
+        if not path.is_absolute():
+            path = self._settings_file.parent / path
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def update_logging_directory(self, directory: str) -> Path:
+        logging_settings = self._settings.setdefault("logging", {})
+        logging_settings["directory"] = directory
+        resolved = self.get_logging_directory()
+        self.save_settings()
+        return resolved
 
     def _sanitize_file_type_settings(
         self, provided: dict[str, dict[str, bool]] | None

@@ -43,6 +43,10 @@ class ProcessResponse(BaseModel):
     job_id: str | None = None
     status: CleanStatus = Field(default=CleanStatus.SUCCESS)
     results: list[FileProcessResult] = Field(default_factory=list)
+    progress: "JobProgressModel | None" = None
+    log: "JobLogInfoModel | None" = None
+    created_at: str | None = None
+    completed_at: str | None = None
 
 
 class MetadataFieldModel(BaseModel):
@@ -105,3 +109,34 @@ class ProfileUpdatePayload(BaseModel):
     name: str | None = None
     description: str | None = None
     file_type_settings: dict[str, dict[str, bool]] | None = None
+
+
+class JobProgressStepModel(BaseModel):
+    key: str
+    label: str
+    status: str
+    percent: float
+    detail: str | None = None
+
+
+class JobProgressFileModel(BaseModel):
+    path: str
+    index: int
+    total: int
+    status: CleanStatus
+    current_step: str | None = None
+    percent: float
+    steps: list[JobProgressStepModel]
+
+
+class JobProgressModel(BaseModel):
+    overall_percent: float
+    files: list[JobProgressFileModel]
+
+
+class JobLogInfoModel(BaseModel):
+    ready: bool
+    formats: list[str]
+
+
+ProcessResponse.model_rebuild()

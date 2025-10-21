@@ -11,7 +11,7 @@
   <a href="https://github.com/AntGalanin06/Metadata_Cleaner/releases/latest"><img src="https://img.shields.io/github/v/release/AntGalanin06/Metadata_Cleaner?label=latest%20release" alt="Latest Release"/></a>
   <a href="https://github.com/AntGalanin06/Metadata_Cleaner/stargazers"><img src="https://img.shields.io/github/stars/AntGalanin06/Metadata_Cleaner?style=social" alt="GitHub Stars"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"/></a>
-  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python 3.11+"/></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.14+-blue.svg" alt="Python 3.14+"/></a>
 </p>
 
 <p align="center">
@@ -24,7 +24,11 @@
 
 - **FastAPI backend** с очередью задач, Live WebSocket-обновлениями и поддержкой профилей очистки.
 - **Рабочий Tauri + React интерфейс**, который синхронизирует активный профиль и настройки в реальном времени.
+- **Новый прогресс-центр** с визуализацией этапов (загрузка → бэкап → очистка → сохранение) и статусами по каждому файлу.
+- **Экспорт журналов обработки** в формате JSON или CSV прямо из интерфейса.
 - **Детализированные тесты**: pytest для REST/WebSocket API и Vitest + Testing Library для UI компонентов.
+
+> **Статус миграции:** ветка `refactor/tauri-react-rewrite` находится в состоянии release candidate — backend, WebSocket-реалтайм и Tauri UI готовы, остаётся полировка и финальные сборки.
 
 ---
 
