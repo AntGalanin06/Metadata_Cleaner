@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 const API_URL = "http://127.0.0.1:8765";
 
@@ -31,6 +31,20 @@ type SettingsSchema = {
   output_modes: string[];
 };
 
+type Profile = {
+  id: string;
+  name: string;
+  description?: string | null;
+  file_type_settings: Record<string, Record<string, boolean>>;
+  created_at: string;
+  updated_at: string;
+};
+
+type ProfileSnapshot = {
+  profiles: Profile[];
+  active_id: string | null;
+};
+
 function App() {
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "connecting" | "connected" | "error">("idle");
   const [language, setLanguage] = useState<string | null>(null);
@@ -45,7 +59,14 @@ function App() {
   const [metadataCategories, setMetadataCategories] = useState<string[]>([]);
   const [settingsSchema, setSettingsSchema] = useState<SettingsSchema | null>(null);
 
-  const socketRef = useRef<WebSocket | null>(null);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
+  const [profileDraft, setProfileDraft] = useState<Profile | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  const jobSocketRef = useRef<WebSocket | null>(null);
+  const profileSocketRef = useRef<WebSocket | null>(null);
 
   const resetJobState = () => {
     setJobId(null);
@@ -53,10 +74,17 @@ function App() {
     setResults([]);
   };
 
-  const stopWebSocket = () => {
-    if (socketRef.current) {
-      socketRef.current.close();
-      socketRef.current = null;
+  const stopJobWebSocket = () => {
+    if (jobSocketRef.current) {
+      jobSocketRef.current.close();
+      jobSocketRef.current = null;
+    }
+  };
+
+  const stopProfileWebSocket = () => {
+    if (profileSocketRef.current) {
+      profileSocketRef.current.close();
+      profileSocketRef.current = null;
     }
   };
 
@@ -88,10 +116,234 @@ function App() {
     setLanguage(data.settings?.language ?? null);
   };
 
-  const startWebSocket = (id: string) => {
-    stopWebSocket();
+  const deepCloneFileTypeSettings = (
+    input: Record<string, Record<string, boolean>> | undefined,
+  ): Record<string, Record<string, boolean>> => {
+    const cloned: Record<string, Record<string, boolean>> = {};
+    if (!input) {
+      return cloned;
+    }
+    Object.entries(input).forEach(([fileType, fields]) => {
+      cloned[fileType] = { ...fields };
+    });
+    return cloned;
+  };
+
+  const toEditableProfile = (profile: Profile | null): Profile | null => {
+    if (!profile) {
+      return null;
+    }
+    return {
+      ...profile,
+      description: profile.description ?? "",
+      file_type_settings: deepCloneFileTypeSettings(profile.file_type_settings),
+    };
+  };
+
+  const syncProfileState = (snapshot: ProfileSnapshot) => {
+    const snapshotProfiles = snapshot.profiles ?? [];
+    setProfiles(snapshotProfiles);
+    const activeId = snapshot.active_id ?? null;
+    setActiveProfileId(activeId);
+    const activeProfile = snapshotProfiles.find((item) => item.id === activeId) ?? null;
+    setProfileDraft(toEditableProfile(activeProfile));
+  };
+
+  const fetchProfiles = async () => {
+    const response = await fetch(`${API_URL}/api/settings/profiles`);
+    if (!response.ok) {
+      throw new Error("Failed to load profiles");
+    }
+    const payload = (await response.json()) as ProfileSnapshot;
+    syncProfileState(payload);
+  };
+
+  const defaultProfileSettings = (): Record<string, Record<string, boolean>> => {
+    if (settingsSchema?.file_type_defaults) {
+      return deepCloneFileTypeSettings(settingsSchema.file_type_defaults);
+    }
+    if (profiles[0]) {
+      return deepCloneFileTypeSettings(profiles[0].file_type_settings);
+    }
+    return {};
+  };
+
+  const handleProfileEvent = (payload: any) => {
+    const eventType = String(payload.event ?? "");
+    if (!eventType) {
+      return;
+    }
+    const snapshot: ProfileSnapshot = {
+      profiles: (payload.profiles ?? []) as Profile[],
+      active_id: (payload.active_id ?? null) as string | null,
+    };
+    syncProfileState(snapshot);
+    if (eventType === "profile_created" && payload.profile) {
+      setProfileDraft(toEditableProfile(payload.profile as Profile));
+      setProfileError(null);
+    }
+  };
+
+  const startProfileWebSocket = () => {
+    stopProfileWebSocket();
+    const ws = new WebSocket(`ws://127.0.0.1:8765/ws/settings/profiles`);
+    profileSocketRef.current = ws;
+
+    ws.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data ?? "{}");
+        handleProfileEvent(payload);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    ws.onerror = () => {
+      setProfileError("Ошибка WebSocket при загрузке профилей.");
+      stopProfileWebSocket();
+    };
+
+    ws.onclose = () => {
+      profileSocketRef.current = null;
+    };
+  };
+
+  const handleActivateProfile = async (profileId: string) => {
+    if (!profileId) {
+      return;
+    }
+    setProfileError(null);
+    try {
+      const response = await fetch(
+        `${API_URL}/api/settings/profiles/${profileId}/activate`,
+        {
+          method: "POST",
+        },
+      );
+      if (!response.ok) {
+        throw new Error("Failed to activate profile");
+      }
+      const snapshot = (await response.json()) as ProfileSnapshot;
+      syncProfileState(snapshot);
+    } catch (err) {
+      console.error(err);
+      setProfileError("Не удалось активировать профиль.");
+    }
+  };
+
+  const handleProfileNameChange = (value: string) => {
+    setProfileDraft((current) => {
+      if (!current) {
+        return current;
+      }
+      return { ...current, name: value };
+    });
+  };
+
+  const handleProfileDescriptionChange = (value: string) => {
+    setProfileDraft((current) => {
+      if (!current) {
+        return current;
+      }
+      return { ...current, description: value };
+    });
+  };
+
+  const handleToggleMetadataField = (fileType: string, key: string) => {
+    setProfileDraft((current) => {
+      if (!current) {
+        return current;
+      }
+      const existing = current.file_type_settings[fileType] ?? {};
+      return {
+        ...current,
+        file_type_settings: {
+          ...current.file_type_settings,
+          [fileType]: {
+            ...existing,
+            [key]: !existing[key],
+          },
+        },
+      };
+    });
+  };
+
+  const handleProfileSave = async () => {
+    if (!profileDraft) {
+      return;
+    }
+    setProfileSaving(true);
+    setProfileError(null);
+    try {
+      const response = await fetch(
+        `${API_URL}/api/settings/profiles/${profileDraft.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: profileDraft.name,
+            description: profileDraft.description?.toString().trim() || null,
+            file_type_settings: profileDraft.file_type_settings,
+          }),
+        },
+      );
+      if (!response.ok) {
+        throw new Error("Failed to save profile");
+      }
+      const saved = (await response.json()) as Profile;
+      setProfileDraft(toEditableProfile(saved));
+      setProfileError(null);
+    } catch (err) {
+      console.error(err);
+      setProfileError("Не удалось сохранить профиль.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleCreateProfile = async () => {
+    setProfileError(null);
+    try {
+      const response = await fetch(`${API_URL}/api/settings/profiles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `Профиль ${profiles.length + 1}`,
+          file_type_settings: defaultProfileSettings(),
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to create profile");
+      }
+      const created = (await response.json()) as Profile;
+      setProfileDraft(toEditableProfile(created));
+    } catch (err) {
+      console.error(err);
+      setProfileError("Не удалось создать новый профиль.");
+    }
+  };
+
+  const metadataLookup = useMemo(() => {
+    const fileTypeMap = new Map<string, Map<string, MetadataField>>();
+    metadataCatalogue.forEach((item) => {
+      const fieldMap = new Map<string, MetadataField>();
+      item.fields.forEach((field) => {
+        fieldMap.set(field.key, field);
+      });
+      fileTypeMap.set(item.file_type, fieldMap);
+    });
+    return fileTypeMap;
+  }, [metadataCatalogue]);
+
+  const resolveMetadataLabel = (fileType: string, key: string) => {
+    const field = metadataLookup.get(fileType)?.get(key);
+    return field?.name_key ?? key;
+  };
+
+  const startJobWebSocket = (id: string) => {
+    stopJobWebSocket();
     const ws = new WebSocket(`ws://127.0.0.1:8765/ws/jobs/${id}`);
-    socketRef.current = ws;
+    jobSocketRef.current = ws;
     setJobId(id);
     setJobStatus("pending");
     setResults([]);
@@ -107,7 +359,7 @@ function App() {
         }));
         setResults(normalized);
         if (payload.status === "success" || payload.status === "error") {
-          stopWebSocket();
+          stopJobWebSocket();
         }
       } catch (err) {
         console.error(err);
@@ -116,19 +368,28 @@ function App() {
 
     ws.onerror = () => {
       setError("Ошибка WebSocket: не удалось получить обновления статуса.");
-      stopWebSocket();
+      stopJobWebSocket();
     };
 
     ws.onclose = () => {
-      socketRef.current = null;
+      jobSocketRef.current = null;
     };
   };
 
   useEffect(() => {
     return () => {
-      stopWebSocket();
+      stopJobWebSocket();
+      stopProfileWebSocket();
     };
   }, []);
+
+  useEffect(() => {
+    if (connectionStatus === "connected") {
+      startProfileWebSocket();
+    } else {
+      stopProfileWebSocket();
+    }
+  }, [connectionStatus]);
 
   const handlePing = async () => {
     setConnectionStatus("connecting");
@@ -138,16 +399,25 @@ function App() {
       if (!response.ok) {
         throw new Error("Backend responded with an error");
       }
-      await Promise.all([fetchSettings(), fetchSettingsSchema(), fetchCatalogue()]);
+      await Promise.all([
+        fetchSettings(),
+        fetchSettingsSchema(),
+        fetchCatalogue(),
+        fetchProfiles(),
+      ]);
       setConnectionStatus("connected");
     } catch (err) {
       console.error(err);
-      stopWebSocket();
+      stopJobWebSocket();
+      stopProfileWebSocket();
       resetJobState();
       setConnectionStatus("error");
       setLanguage(null);
       setMetadataCatalogue([]);
       setSettingsSchema(null);
+      setProfiles([]);
+      setActiveProfileId(null);
+      setProfileDraft(null);
       setError("Не удалось подключиться к backend. Проверьте, что приложение запущено.");
     }
   };
@@ -182,10 +452,10 @@ function App() {
       if (!data.job_id) {
         throw new Error("Missing job id in response");
       }
-      startWebSocket(String(data.job_id));
+      startJobWebSocket(String(data.job_id));
     } catch (err) {
       console.error(err);
-      stopWebSocket();
+      stopJobWebSocket();
       resetJobState();
       setError("Не удалось отправить файлы на обработку.");
     } finally {
@@ -245,6 +515,133 @@ function App() {
 
           {error && <p className="text-sm text-red-400">{error}</p>}
         </div>
+
+        <section className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-100">Профили очистки</h2>
+              <p className="text-sm text-slate-400">Настройте набор полей и активируйте профиль для новых задач.</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleCreateProfile}
+              disabled={connectionStatus !== "connected"}
+              className="px-3 py-2 rounded bg-emerald-500 disabled:bg-emerald-500/40 text-white text-sm font-medium hover:bg-emerald-600 transition"
+            >
+              Создать профиль
+            </button>
+          </div>
+
+          {profileError && <p className="text-sm text-red-400">{profileError}</p>}
+
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-slate-300" htmlFor="activeProfile">
+                  Активный профиль
+                </label>
+                <select
+                  id="activeProfile"
+                  className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-100"
+                  value={activeProfileId ?? ""}
+                  onChange={(event) => handleActivateProfile(event.target.value)}
+                  disabled={connectionStatus !== "connected" || profiles.length === 0}
+                >
+                  <option value="" disabled>
+                    {connectionStatus === "connected" ? "Выберите профиль" : "Нет подключения"}
+                  </option>
+                  {profiles.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.name || "Без названия"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-slate-300" htmlFor="profileName">
+                  Название профиля
+                </label>
+                <input
+                  id="profileName"
+                  type="text"
+                  value={profileDraft?.name ?? ""}
+                  onChange={(event) => handleProfileNameChange(event.target.value)}
+                  disabled={!profileDraft}
+                  className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-100 disabled:text-slate-500"
+                  placeholder="Например: Публикация"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-slate-300" htmlFor="profileDescription">
+                Описание
+              </label>
+              <input
+                id="profileDescription"
+                type="text"
+                value={profileDraft?.description ?? ""}
+                onChange={(event) => handleProfileDescriptionChange(event.target.value)}
+                disabled={!profileDraft}
+                className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-100 disabled:text-slate-500"
+                placeholder="Короткое описание профиля"
+              />
+            </div>
+
+            {profileDraft ? (
+              <div className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  {Object.entries(profileDraft.file_type_settings)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([fileType, fields]) => (
+                      <div key={fileType} className="rounded-lg border border-slate-800 bg-slate-950/40 p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+                            {fileType}
+                          </h3>
+                          <span className="text-xs text-slate-500">{Object.keys(fields).length} полей</span>
+                        </div>
+                        <div className="space-y-2 max-h-52 overflow-y-auto pr-1 custom-scrollbar">
+                          {Object.entries(fields)
+                            .sort(([a], [b]) => a.localeCompare(b))
+                            .map(([fieldKey, enabled]) => (
+                              <label
+                                key={`${fileType}-${fieldKey}`}
+                                className="flex items-start gap-2 text-sm text-slate-200"
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="mt-1 h-4 w-4 rounded border-slate-700 bg-slate-900"
+                                  checked={Boolean(enabled)}
+                                  onChange={() => handleToggleMetadataField(fileType, fieldKey)}
+                                />
+                                <span>
+                                  {resolveMetadataLabel(fileType, fieldKey)}
+                                </span>
+                              </label>
+                            ))}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleProfileSave}
+                    disabled={profileSaving || !profileDraft || connectionStatus !== "connected"}
+                    className="px-4 py-2 rounded bg-blue-500 disabled:bg-blue-500/40 text-white text-sm font-medium hover:bg-blue-600 transition"
+                  >
+                    {profileSaving ? "Сохранение..." : "Сохранить профиль"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400">Подключитесь к backend и выберите профиль для редактирования.</p>
+            )}
+          </div>
+        </section>
 
         {jobId && (
           <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4 space-y-2">

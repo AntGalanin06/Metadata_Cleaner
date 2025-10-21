@@ -13,6 +13,10 @@ from metadata_cleaner_core.api.schemas import (
     MetadataFieldModel,
     ProcessRequest,
     ProcessResponse,
+    ProfileCreatePayload,
+    ProfileListResponse,
+    ProfileModel,
+    ProfileUpdatePayload,
     SettingsPayload,
     SettingsResponse,
     SettingsSchemaResponse,
@@ -22,6 +26,7 @@ from metadata_cleaner_core.engine.models import CleanStatus
 from metadata_cleaner_core.engine.queue import JobQueue
 from metadata_cleaner_core.engine.job_manager import JobManager
 from metadata_cleaner_core.engine.metadata_registry import MetadataRegistry
+from metadata_cleaner_core.settings.events import SettingsEventBroker
 from metadata_cleaner_core.settings.service import SettingsService
 from metadata_cleaner_core.version import get_version
 
@@ -48,6 +53,7 @@ def create_app() -> FastAPI:
     dispatcher = MetadataDispatcher(settings_service=settings)
     job_queue = JobQueue(dispatcher)
     job_manager = JobManager(job_queue)
+    profile_events = SettingsEventBroker()
     api_router = APIRouter(prefix="/api")
 
 
@@ -62,6 +68,7 @@ def create_app() -> FastAPI:
     app.state.settings_service = settings
     app.state.dispatcher = dispatcher
     app.state.job_manager = job_manager
+    app.state.profile_events = profile_events
 
     @app.get("/health", tags=["system"])
     async def healthcheck() -> dict[str, str]:
@@ -102,6 +109,83 @@ def create_app() -> FastAPI:
         """Return default settings schema to drive the UI."""
         schema = settings.get_settings_schema()
         return SettingsSchemaResponse(**schema)
+
+    @api_router.get(
+        "/settings/profiles",
+        response_model=ProfileListResponse,
+        tags=["settings"],
+    )
+    async def list_profiles() -> ProfileListResponse:
+        payload = settings.list_profiles()
+        return ProfileListResponse(**payload)
+
+    @api_router.post(
+        "/settings/profiles",
+        response_model=ProfileModel,
+        status_code=201,
+        tags=["settings"],
+    )
+    async def create_profile(payload: ProfileCreatePayload) -> ProfileModel:
+        profile = settings.create_profile(
+            name=payload.name,
+            description=payload.description,
+            file_type_settings=payload.file_type_settings,
+        )
+        await profile_events.publish(
+            {"event": "profile_created", "profile": profile, **settings.list_profiles()}
+        )
+        return ProfileModel(**profile)
+
+    @api_router.put(
+        "/settings/profiles/{profile_id}",
+        response_model=ProfileModel,
+        tags=["settings"],
+    )
+    async def update_profile(profile_id: str, payload: ProfileUpdatePayload) -> ProfileModel:
+        try:
+            profile = settings.update_profile(
+                profile_id,
+                name=payload.name,
+                description=payload.description,
+                file_type_settings=payload.file_type_settings,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Profile not found") from exc
+        await profile_events.publish(
+            {"event": "profile_updated", "profile": profile, **settings.list_profiles()}
+        )
+        return ProfileModel(**profile)
+
+    @api_router.delete(
+        "/settings/profiles/{profile_id}",
+        tags=["settings"],
+    )
+    async def delete_profile(profile_id: str) -> dict[str, str]:
+        try:
+            removed = settings.delete_profile(profile_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Profile not found") from exc
+        await profile_events.publish(
+            {"event": "profile_deleted", "profile": removed, **settings.list_profiles()}
+        )
+        return {"status": "deleted", "profile_id": profile_id}
+
+    @api_router.post(
+        "/settings/profiles/{profile_id}/activate",
+        response_model=ProfileListResponse,
+        tags=["settings"],
+    )
+    async def activate_profile(profile_id: str) -> ProfileListResponse:
+        try:
+            snapshot = settings.set_active_profile(profile_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Profile not found") from exc
+        await profile_events.publish(
+            {"event": "profile_activated", "active_id": snapshot["active_id"], **snapshot}
+        )
+        return ProfileListResponse(**snapshot)
 
     @api_router.post("/process", response_model=ProcessResponse, tags=["processing"])
     async def process_files(request: ProcessRequest) -> ProcessResponse:
@@ -180,6 +264,22 @@ def create_app() -> FastAPI:
             pass
         finally:
             await job_manager.unsubscribe(job_id, queue)
+            with contextlib.suppress(RuntimeError):
+                await websocket.close()
+
+    @app.websocket("/ws/settings/profiles")
+    async def profile_updates(websocket: WebSocket) -> None:
+        await websocket.accept()
+        queue = await profile_events.subscribe()
+        try:
+            await websocket.send_json({"event": "profiles_snapshot", **settings.list_profiles()})
+            while True:
+                event = await queue.get()
+                await websocket.send_json(event)
+        except WebSocketDisconnect:
+            pass
+        finally:
+            await profile_events.unsubscribe(queue)
             with contextlib.suppress(RuntimeError):
                 await websocket.close()
 
