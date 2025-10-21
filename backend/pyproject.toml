@@ -1,0 +1,47 @@
+[tool.poetry]
+name = "metadata-cleaner-core"
+version = "0.1.0"
+description = "Core metadata cleaning engine and API for the rewritten Metadata Cleaner application"
+authors = ["Metadata Cleaner Team <dev@metadata-cleaner.app>"]
+license = "MIT"
+readme = "../README_EN.md"
+packages = [{ include = "metadata_cleaner_core", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.14,<3.15"
+fastapi = "^0.115.0"
+uvicorn = { extras = ["standard"], version = "^0.32.0" }
+pydantic = "^2.9.0"
+python-docx = "^1.1.0"
+python-pptx = "^0.6.23"
+openpyxl = "^3.1.5"
+pypdf = "^6.0.0"
+pillow = "^11.1.0"
+piexif = "^1.1.3"
+pillow-heif = "^1.1.0"
+hachoir = "^3.2.0"
+orjson = "^3.10.0"
+typer = "^0.12.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.0"
+pytest-asyncio = "^0.24.0"
+httpx = "^0.27.0"
+ruff = "^0.6.9"
+black = "^24.10.0"
+mypy = "^1.11.0"
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.black]
+line-length = 100
+target-version = ["py314"]
+
+[tool.poetry.scripts]
+metadata-cleaner-core = "metadata_cleaner_core.cli:cli"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

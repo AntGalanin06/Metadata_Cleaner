@@ -1,0 +1,39 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devPath": "http://localhost:1420",
+    "distDir": "../dist"
+  },
+  "package": {
+    "productName": "Metadata Cleaner",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "bundle": {
+      "active": true,
+      "identifier": "app.metadata-cleaner.desktop",
+      "targets": "all",
+      "icon": [
+        "../public/logo.svg"
+      ]
+    },
+    "updater": {
+      "active": false
+    },
+    "windows": [
+      {
+        "title": "Metadata Cleaner",
+        "width": 1100,
+        "height": 720,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "dangerousRemoteDomainIpcAccess": [
+        "http://127.0.0.1:8765"
+      ]
+    }
+  }
+}

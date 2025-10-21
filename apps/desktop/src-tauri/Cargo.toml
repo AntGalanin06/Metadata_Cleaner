@@ -1,0 +1,22 @@
+[package]
+name = "metadata-cleaner-tauri"
+version = "0.1.0"
+description = "Tauri shell for the rewritten Metadata Cleaner desktop app"
+authors = ["Metadata Cleaner Team <dev@metadata-cleaner.app>"]
+edition = "2021"
+rust-version = "1.75"
+
+[build-dependencies]
+tauri-build = { version = "1.6", features = [] }
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tauri = { version = "1.6", features = ["shell-open"] }
+tauri-plugin-log = "1.1"
+tauri-plugin-shell = "2.0.0-beta.5"
+anyhow = "1.0"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

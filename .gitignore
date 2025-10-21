@@ -95,3 +95,9 @@ test_*.docx
 # Claude Code CLI files
 /.claude
 CLAUDE.md
+
+# Node / Tauri workspace
+apps/desktop/node_modules/
+apps/desktop/.turbo/
+apps/desktop/.tauri/
+apps/desktop/src-tauri/target/
