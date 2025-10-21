@@ -6,8 +6,10 @@ import copy
 import json
 import os
 import platform
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from metadata_cleaner_core.engine.models import OutputMode
 from metadata_cleaner_core.engine.metadata_registry import MetadataRegistry
@@ -53,6 +55,7 @@ class SettingsService:
         return settings
 
     def _load_default_settings(self) -> dict[str, Any]:
+        now = datetime.now(timezone.utc).isoformat()
         return {
             "theme": "system",
             "language": "en",
@@ -73,6 +76,19 @@ class SettingsService:
                 "secure_delete": False,
                 "verify_file_integrity": True,
                 "create_processing_log": True,
+            },
+            "profiles": {
+                "active_id": "default",
+                "items": [
+                    {
+                        "id": "default",
+                        "name": "Default",
+                        "description": "System default cleaning profile",
+                        "file_type_settings": self._get_default_file_type_settings(),
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+                ],
             },
         }
 
@@ -175,3 +191,126 @@ class SettingsService:
             "language_options": ["en", "ru"],
             "output_modes": [mode.value for mode in OutputMode],
         }
+
+    # Profile management -------------------------------------------------
+
+    def list_profiles(self) -> dict[str, Any]:
+        profiles = self._settings.setdefault("profiles", self._load_default_settings()["profiles"])
+        return {
+            "profiles": copy.deepcopy(profiles.get("items", [])),
+            "active_id": profiles.get("active_id", "default"),
+        }
+
+    def get_profile(self, profile_id: str) -> dict[str, Any]:
+        for profile in self.list_profiles()["profiles"]:
+            if profile["id"] == profile_id:
+                return profile
+        raise KeyError(profile_id)
+
+    def create_profile(
+        self,
+        *,
+        name: str,
+        description: str | None,
+        file_type_settings: dict[str, dict[str, bool]] | None = None,
+    ) -> dict[str, Any]:
+        profiles_section = self._settings.setdefault(
+            "profiles", copy.deepcopy(self._load_default_settings()["profiles"])
+        )
+        profile_id = uuid.uuid4().hex
+        sanitized_settings = self._sanitize_file_type_settings(file_type_settings)
+        now = datetime.now(timezone.utc).isoformat()
+        profile = {
+            "id": profile_id,
+            "name": name,
+            "description": description,
+            "file_type_settings": sanitized_settings,
+            "created_at": now,
+            "updated_at": now,
+        }
+        profiles_section.setdefault("items", []).append(profile)
+        self.save_settings()
+        return copy.deepcopy(profile)
+
+    def update_profile(
+        self,
+        profile_id: str,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        file_type_settings: dict[str, dict[str, bool]] | None = None,
+    ) -> dict[str, Any]:
+        profiles_section = self._settings.setdefault(
+            "profiles", copy.deepcopy(self._load_default_settings()["profiles"])
+        )
+        for profile in profiles_section.get("items", []):
+            if profile["id"] == profile_id:
+                if name is not None:
+                    profile["name"] = name
+                if description is not None:
+                    profile["description"] = description
+                if file_type_settings is not None:
+                    profile["file_type_settings"] = self._sanitize_file_type_settings(
+                        file_type_settings
+                    )
+                profile["updated_at"] = datetime.now(timezone.utc).isoformat()
+                self.save_settings()
+                return copy.deepcopy(profile)
+        raise KeyError(profile_id)
+
+    def delete_profile(self, profile_id: str) -> dict[str, Any]:
+        profiles_section = self._settings.setdefault(
+            "profiles", copy.deepcopy(self._load_default_settings()["profiles"])
+        )
+        items = profiles_section.get("items", [])
+        if profile_id == "default":
+            raise ValueError("cannot delete default profile")
+        for index, profile in enumerate(items):
+            if profile["id"] == profile_id:
+                removed = items.pop(index)
+                if profiles_section.get("active_id") == profile_id:
+                    fallback = next(
+                        (item["id"] for item in items if item["id"] == "default"),
+                        None,
+                    )
+                    if fallback is None and items:
+                        fallback = items[0]["id"]
+                    profiles_section["active_id"] = fallback or "default"
+                self.save_settings()
+                return copy.deepcopy(removed)
+        raise KeyError(profile_id)
+
+    def set_active_profile(self, profile_id: str) -> dict[str, Any]:
+        profiles_section = self._settings.setdefault(
+            "profiles", copy.deepcopy(self._load_default_settings()["profiles"])
+        )
+        if any(profile["id"] == profile_id for profile in profiles_section.get("items", [])):
+            profiles_section["active_id"] = profile_id
+            self.save_settings()
+            return self.list_profiles()
+        raise KeyError(profile_id)
+
+    def _sanitize_file_type_settings(
+        self, provided: dict[str, dict[str, bool]] | None
+    ) -> dict[str, dict[str, bool]]:
+        defaults = self._get_default_file_type_settings()
+        if not provided:
+            return defaults
+
+        sanitized: dict[str, dict[str, bool]] = {}
+        for file_type, default_settings in defaults.items():
+            overrides = provided.get(file_type, {}) if provided else {}
+            sanitized[file_type] = self._sanitize_metadata_flags(
+                default_settings.items(), overrides
+            )
+        return sanitized
+
+    def _sanitize_metadata_flags(
+        self,
+        default_items: Iterable[tuple[str, bool]],
+        overrides: dict[str, bool],
+    ) -> dict[str, bool]:
+        sanitized: dict[str, bool] = {}
+        for key, default_value in default_items:
+            sanitized[key] = bool(overrides.get(key, default_value))
+        return sanitized

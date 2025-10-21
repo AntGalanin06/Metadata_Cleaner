@@ -79,3 +79,29 @@ class SettingsSchemaResponse(BaseModel):
     theme_options: list[str]
     language_options: list[str]
     output_modes: list[str]
+
+
+class ProfileModel(BaseModel):
+    id: str
+    name: str
+    description: str | None = None
+    file_type_settings: dict[str, dict[str, bool]]
+    created_at: str
+    updated_at: str
+
+
+class ProfileListResponse(BaseModel):
+    profiles: list[ProfileModel]
+    active_id: str
+
+
+class ProfileCreatePayload(BaseModel):
+    name: str
+    description: str | None = None
+    file_type_settings: dict[str, dict[str, bool]] | None = None
+
+
+class ProfileUpdatePayload(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    file_type_settings: dict[str, dict[str, bool]] | None = None

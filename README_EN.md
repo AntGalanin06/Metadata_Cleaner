@@ -365,6 +365,41 @@ Speed depends on:
 
 ---
 
+## 🧱 Architecture
+
+| Layer | Responsibilities |
+| ----- | ---------------- |
+| **Backend (`backend/src/metadata_cleaner_core`)** | FastAPI application with a job queue, cleaning dispatcher, and persisted settings service. Profiles, settings, and processing events are exposed through REST and WebSocket channels. |
+| **Desktop shell (`apps/desktop`)** | Vite + React UI bundled with Tauri. Communicates with the backend over HTTP/WebSocket, manages cleaning profiles in real time, and renders task progress. |
+| **Engine (`metadata_cleaner`)** | Cross-platform metadata removal routines reused by the CLI, legacy app, and the new core. |
+| **Docs & tooling** | Migration notes, build scripts, CI workflows. |
+
+The Tauri process launches the FastAPI backend and proxies all API calls. Profile changes and job updates are synchronised through dedicated WebSocket channels so multiple windows stay in sync.
+
+## 🛠️ Development setup
+
+1. **Prerequisites**
+   - Python 3.14 with [Poetry](https://python-poetry.org/) for dependency management
+   - Node.js 18+ and npm (or pnpm) for the React desktop shell
+   - Rust toolchain + `cargo install tauri-cli` for packaging
+   - libgtk / WebKitGTK on Linux, Xcode Command Line Tools on macOS, and the Windows 10 SDK for Windows builds
+2. **Install backend dependencies**
+   ```bash
+   cd backend
+   poetry install
+   ```
+3. **Install desktop dependencies**
+   ```bash
+   cd ../apps/desktop
+   npm install
+   ```
+4. **Run the stack locally**
+   - start the backend: `cd backend && poetry run uvicorn metadata_cleaner_core.api.app:create_app --factory --reload`
+   - run the desktop shell: `cd apps/desktop && npm run dev` (or `npm run tauri dev` to bundle everything in a single window)
+5. **Execute tests**
+   - backend: `cd backend && poetry run pytest`
+   - frontend: `cd apps/desktop && npm run test`
+
 ## 📄 Documentation
 
 - 📋 [**Terms of Service**](docs/TERMS_OF_SERVICE_EN.md)
